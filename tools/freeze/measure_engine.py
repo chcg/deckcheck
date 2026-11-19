@@ -15,7 +15,7 @@ from pathlib import Path
 
 DIST = Path("build-engine/dist/deckcheck")
 EXE = DIST / "deckcheck.exe"
-YARIS = Path(".corpus/local/ccsa-yaris/2010-toyota-yaris-detailed-v2j/set-yaris-detailed-v2j.key")
+YARIS = Path(".corpus/local/ccsa-yaris/2010-toyota-yaris-detailed-v2j/combine.key")  # the main deck
 BUMPER = Path(r"C:\Program Files\LS-DYNA Suite R16.1 Student\documentation\examples\Bumper_impact_test\bumper.k")
 
 
