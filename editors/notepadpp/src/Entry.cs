@@ -62,7 +62,7 @@ namespace Deckcheck.Npp
             try
             {
                 NmHdr h = (NmHdr)Marshal.PtrToStructure(notification, typeof(NmHdr));
-                Plugin.OnNotify(h);
+                Plugin.OnNotify(h, notification);
             }
             catch (Exception e) { Plugin.Fail(e); }
         }
@@ -77,6 +77,8 @@ namespace Deckcheck.Npp
             }
             finally { Marshal.FreeHGlobal(which); }
         }
+
+        public static IntPtr[] Views { get { return new[] { _sci1, _sci2 }; } }
 
         public static void SetChecked(int item, bool on)
         {

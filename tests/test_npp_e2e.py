@@ -135,6 +135,89 @@ def test_missing_engine_is_reported_and_the_editor_still_works(plugin, trace, tm
         npp.close()
 
 
+def _seeded_variant(tmp_path: Path, name: str, encoding: str, bom: bool) -> Path:
+    """The seeded deck with a non-ASCII comment line, in a given encoding (N3: column conversion)."""
+    text = (TORTURE / "seeded_mistakes" / "main.k").read_text(encoding="latin-1")
+    text = text.replace("*KEYWORD\n", "*KEYWORD\n$ bumper tested at 20°C, gap 5µm\n", 1)
+    folder = tmp_path / name
+    folder.mkdir()
+    (folder / "main.k").write_bytes((b"\xef\xbb\xbf" if bom else b"") + text.encode(encoding))
+    return folder / "main.k"
+
+
+@pytest.mark.parametrize("name,encoding,bom", [("latin1", "latin-1", False), ("utf8", "utf-8", False),
+                                               ("utf8bom", "utf-8", True)])
+def test_squiggles_and_jump_land_on_the_field(npp_exe, trace, tmp_path, name, encoding, bom):
+    main = _seeded_variant(tmp_path, name, encoding, bom)
+    npp = drive.Npp(npp_exe, [main], {"DECKCHECK_NPP_TRACE": str(trace), "DECKCHECK_NPP_TEST_JUMP": "0"})
+    try:
+        npp.command("Check model")
+        painted = drive.wait_event(trace, "painted")
+        assert painted["count"] >= 2 and painted["first_text"] == "missing_file.k"
+        assert drive.wait_event(trace, "jumped")["text"] == "missing_file.k"
+    finally:
+        npp.close()
+
+
+def test_the_dangling_mid_is_squiggled(npp_exe, trace, tmp_path):
+    main = _seeded_variant(tmp_path, "mid", "utf-8", False)
+    npp = drive.Npp(npp_exe, [main], {"DECKCHECK_NPP_TRACE": str(trace), "DECKCHECK_NPP_TEST_JUMP": "1"})
+    try:
+        npp.command("Check model")
+        assert drive.wait_event(trace, "jumped")["text"] == "99"
+    finally:
+        npp.close()
+
+
+def test_painting_is_capped(npp_exe, trace, tmp_path):
+    cards = "".join(f"*PART\np{i}\n{i:>10}         2        99\n" for i in range(1, 2501))
+    main = tmp_path / "many.k"
+    main.write_text(f"*KEYWORD\n{cards}*SECTION_SHELL\n         2        16\n*END\n", encoding="latin-1")
+    npp = drive.Npp(npp_exe, [main], {"DECKCHECK_NPP_TRACE": str(trace)})
+    try:
+        npp.command("Check model")
+        done = drive.wait_event(trace, "check_done")
+        painted = drive.wait_event(trace, "painted")
+        assert done["rows"] >= 2500 and painted["count"] == 2000 and painted["capped"] is True
+    finally:
+        npp.close()
+
+
+def test_calltip_and_disable_clears(npp_exe, trace, tmp_path):
+    main = _copy("seeded_mistakes", tmp_path) / "main.k"
+    npp = drive.Npp(npp_exe, [main], {"DECKCHECK_NPP_TRACE": str(trace), "DECKCHECK_NPP_TEST_DWELL": "0"})
+    try:
+        npp.command("Check model")
+        assert drive.wait_event(trace, "calltip")["text"].startswith("DC004 error: include file 'missing_file.k'")
+        n = len(drive.events(trace))
+        npp.command("Disable")
+        assert drive.wait_event(trace, "painted", after=n)["count"] == 0
+    finally:
+        npp.close()
+
+
+def test_switching_tabs_repaints(npp_exe, trace, tmp_path):
+    folder = _copy("seeded_mistakes", tmp_path)
+    other = tmp_path / "other.txt"
+    other.write_text("notes\n")
+    npp = drive.Npp(npp_exe, [folder / "main.k", other], {"DECKCHECK_NPP_TRACE": str(trace)})
+    try:
+        user32 = drive.user32
+        user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44095, 0)  # IDM_VIEW_TAB1: first tab (main.k)
+        time.sleep(1)
+        npp.command("Check model")
+        drive.wait_event(trace, "check_done")
+        n = len(drive.events(trace))
+        user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44096, 0)  # IDM_VIEW_TAB2: other.txt
+        time.sleep(1)
+        user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44095, 0)  # back to main.k
+        time.sleep(1.5)
+        repaints = [e for e in drive.events(trace)[n:] if e["event"] == "painted"]
+        assert [(Path(e["file"]).name, e["count"] >= 2) for e in repaints] == [("other.txt", False), ("main.k", True)]
+    finally:
+        npp.close()
+
+
 @pytest.mark.skipif(not YARIS.exists(), reason="Yaris corpus not present")
 def test_a_new_check_replaces_the_old_and_closing_kills_the_engine(npp_exe, trace):
     engine_dir = npp_exe.parent / "plugins" / "deckcheck" / "engine"

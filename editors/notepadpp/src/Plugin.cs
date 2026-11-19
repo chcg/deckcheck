@@ -73,13 +73,32 @@ namespace Deckcheck.Npp
             try { a(); } catch (Exception e) { Fail(e); }
         }
 
-        public static void OnNotify(NmHdr h)
+        static readonly Painter _painter = new Painter();
+        static CheckResult _lastResult;
+        const uint SCN_DWELLSTART = 2016, SCN_DWELLEND = 2017;
+        const uint SCI_SETMOUSEDWELLTIME = 2264, SCI_GETMOUSEDWELLTIME = 2265, SCI_CALLTIPSHOW = 2200, SCI_CALLTIPCANCEL = 2201;
+        const int SC_TIME_FOREVER = 10000000;
+
+        public static void OnNotify(NmHdr h, IntPtr raw)
         {
             switch (h.Code)
             {
                 case Win.NPPN_READY:
                     Entry.SetChecked(Entry.ItemDisable, Config.Disabled);
                     IntPtr unused = ThePanel.Handle;
+                    _painter.Init(Entry.Npp, Entry.Views);
+                    foreach (IntPtr sci in Entry.Views)
+                        if (Win.Send(sci, SCI_GETMOUSEDWELLTIME, 0, 0).ToInt64() >= SC_TIME_FOREVER)
+                            Win.Send(sci, SCI_SETMOUSEDWELLTIME, 500, 0);
+                    break;
+                case Win.NPPN_BUFFERACTIVATED:
+                    PaintActive();
+                    break;
+                case SCN_DWELLSTART:
+                    if (h.HwndFrom == Entry.CurrentScintilla()) ShowCalltip(h.HwndFrom, Marshal.ReadIntPtr(raw, 24).ToInt64());
+                    break;
+                case SCN_DWELLEND:
+                    Win.Send(h.HwndFrom, SCI_CALLTIPCANCEL, 0, 0);
                     break;
                 case Win.NPPN_FILESAVED:
                 {
@@ -181,6 +200,8 @@ namespace Deckcheck.Npp
             }
             CheckResult r = o.Result;
             _lastFolder = o.Folder;
+            foreach (Finding f in r.Diagnostics) f.Path = Path.GetFullPath(Path.Combine(o.Folder, f.File));
+            _lastResult = r;
             _modelFolders = r.Models.Select(m => Path.GetDirectoryName(Path.GetFullPath(Path.Combine(o.Folder, m.Main))))
                                     .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             List<string> unsaved = _unsaved.Where(InModel).OrderBy(x => x).ToList();
@@ -188,6 +209,7 @@ namespace Deckcheck.Npp
             Trace.Write("check_done", "file", path, "errors", r.Errors, "warnings", r.Warnings, "rows", r.Diagnostics.Count,
                         "models", r.Models.Select(m => m.Main).ToArray(), "alone", r.Models.Any(m => m.Alone),
                         "unsaved", unsaved.ToArray(), "seconds", o.Seconds);
+            PaintActive();
             int row;  // end-to-end test hook, like the trace: off unless the variable is set
             if (int.TryParse(Environment.GetEnvironmentVariable("DECKCHECK_NPP_TEST_JUMP"), out row) && row < r.Diagnostics.Count)
                 Jump(r.Diagnostics[row]);
@@ -197,18 +219,64 @@ namespace Deckcheck.Npp
 
         static void Jump(Finding f)
         {
-            string file = Path.GetFullPath(Path.Combine(_lastFolder ?? "", f.File));
+            string file = f.Path ?? Path.GetFullPath(Path.Combine(_lastFolder ?? "", f.File));
             Win.SendMessage(Entry.Npp, Win.NPPM_DOOPEN, IntPtr.Zero, file);
             IntPtr sci = Entry.CurrentScintilla();
             int line = Math.Max(f.Line - 1, 0);
             Win.Send(sci, Win.SCI_GOTOLINE, line, 0);
             long start = Win.Send(sci, Win.SCI_POSITIONFROMLINE, line, 0).ToInt64();
-            Win.Send(sci, Win.SCI_SETSEL, start + f.Column - 1, start + f.EndColumn - 1);
+            PaintedRange r = Painter.RangeOf(sci, CurrentEncoding(), f);
+            if (r != null) Win.Send(sci, Win.SCI_SETSEL, r.Start, r.End);
             Win.Send(sci, Win.SCI_SCROLLCARET, 0, 0);
             Win.Send(sci, Win.SCI_GRABFOCUS, 0, 0);
             Trace.Write("jumped", "file", file, "line", f.Line,
                         "sel_start", Win.Send(sci, 2143, 0, 0).ToInt64() - start,
-                        "sel_end", Win.Send(sci, 2145, 0, 0).ToInt64() - start);
+                        "sel_end", Win.Send(sci, 2145, 0, 0).ToInt64() - start,
+                        "text", r == null ? "" : Painter.Text(sci, r));
+        }
+
+        static int CurrentEncoding()
+        {
+            IntPtr buffer = Win.Send(Entry.Npp, Win.NPPM_GETCURRENTBUFFERID, 0, 0);
+            return Win.Send(Entry.Npp, Win.NPPMSG + 66 /* NPPM_GETBUFFERENCODING */, buffer.ToInt64(), 0).ToInt32();
+        }
+
+        /// Squiggles in the active document for the last result (spec §4); none while disabled.
+        static void PaintActive()
+        {
+            if (_lastResult == null || Config.Disabled) return;
+            string path = CurrentPath();
+            if (string.IsNullOrEmpty(path)) return;
+            IntPtr sci = Entry.CurrentScintilla();
+            List<Finding> all = _lastResult.Diagnostics.Where(f => string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)).ToList();
+            IList<Finding> mine = Painter.Select(all, path, Painter.Cap);
+            int n = _painter.Paint(sci, CurrentEncoding(), mine);
+            Trace.Write("painted", "file", path, "count", n, "capped", all.Count > Painter.Cap,
+                        "first_text", _painter.Ranges.Count > 0 ? Painter.Text(sci, _painter.Ranges[0]) : "",
+                        "first_line", _painter.Ranges.Count > 0 ? _painter.Ranges[0].Finding.Line : 0);
+            string at = Environment.GetEnvironmentVariable("DECKCHECK_NPP_TEST_DWELL");  // test hook, off unless set
+            if (!string.IsNullOrEmpty(at) && _painter.Ranges.Count > 0)
+            {
+                int k = int.Parse(at);
+                if (k < _painter.Ranges.Count) ShowCalltip(sci, _painter.Ranges[k].Start);
+            }
+        }
+
+        static void ShowCalltip(IntPtr sci, long pos)
+        {
+            PaintedRange hit = _painter.Ranges.FirstOrDefault(r => r.Start <= pos && pos < r.End);
+            if (hit == null) return;
+            string text = hit.Finding.Code + " " + hit.Finding.Severity + ": " + hit.Finding.Message;
+            int cp = Win.Send(sci, Win.SCI_GETCODEPAGE, 0, 0).ToInt32();
+            byte[] bytes = (cp == ColumnMap.CodepageUtf8 ? Encoding.UTF8 : Encoding.Default).GetBytes(text + "\0");
+            IntPtr p = Marshal.AllocHGlobal(bytes.Length);
+            try
+            {
+                Marshal.Copy(bytes, 0, p, bytes.Length);
+                Win.Send(sci, SCI_CALLTIPSHOW, pos, p.ToInt64());
+            }
+            finally { Marshal.FreeHGlobal(p); }
+            Trace.Write("calltip", "text", text);
         }
 
         static void CancelRun()
@@ -262,8 +330,11 @@ namespace Deckcheck.Npp
             if (Config.Disabled)
             {
                 CancelRun();
+                _painter.Clear(Entry.CurrentScintilla());
+                Trace.Write("painted", "file", CurrentPath(), "count", 0, "capped", false, "first_text", "", "first_line", 0);
                 if (_panel != null) _panel.ShowMessage("deckcheck is disabled. Plugins > deckcheck > Disable turns it back on.");
             }
+            else PaintActive();
             Trace.Write("disabled", "on", Config.Disabled);
         }
 
