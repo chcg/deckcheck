@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "main": "main.k",
+      "files": 1,
+      "alone": false
+    }
+  ],
+  "diagnostics": [
+    {
+      "file": "main.k",
+      "line": 3,
+      "column": 1,
+      "end_column": 15,
+      "severity": "error",
+      "code": "DC004",
+      "message": "include file 'missing_file.k' not found",
+      "related": []
+    },
+    {
+      "file": "main.k",
+      "line": 8,
+      "column": 29,
+      "end_column": 31,
+      "severity": "error",
+      "code": "DC001",
+      "message": "*PART mid refers to MAT 99, which is not defined; it may be defined in missing include 'missing_file.k'",
+      "related": []
+    },
+    {
+      "file": "main.k",
+      "line": 11,
+      "column": 10,
+      "end_column": 11,
+      "severity": "error",
+      "code": "DC002",
+      "message": "PART 1 is defined twice (first at main.k:8)",
+      "related": [
+        {
+          "file": "main.k",
+          "line": 8,
+          "message": "first definition"
+        }
+      ]
+    }
+  ],
+  "not_checked": [
+    {
+      "main": "main.k",
+      "what": "unused MAT (DC005)",
+      "reasons": [
+        "main.k:3 missing include 'missing_file.k' may refer to it"
+      ],
+      "count": 1
+    },
+    {
+      "main": "main.k",
+      "what": "unused SECTION (DC005)",
+      "reasons": [
+        "main.k:3 missing include 'missing_file.k' may refer to it"
+      ],
+      "count": 1
+    },
+    {
+      "main": "main.k",
+      "what": "unused HOURGLASS (DC005)",
+      "reasons": [
+        "main.k:3 missing include 'missing_file.k' may refer to it"
+      ],
+      "count": 1
+    },
+    {
+      "main": "main.k",
+      "what": "unused definitions of other kinds (DC005)",
+      "reasons": [
+        "checked for MAT, SECTION, HOURGLASS only"
+      ],
+      "count": 1
+    }
+  ],
+  "summary": {
+    "errors": 3,
+    "warnings": 0
+  }
+}
