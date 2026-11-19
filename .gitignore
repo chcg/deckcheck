@@ -7,3 +7,5 @@ bakeoff/scratch/
 .superpowers/
 .venv-extract/
 dist/
+build-engine/
+.venv-freeze/
