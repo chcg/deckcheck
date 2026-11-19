@@ -46,6 +46,53 @@ public static class Run
         throw new Exception("no EngineError for <" + contains + ">");
     }
 
+    // N3 Task 1: column conversion
+    static byte[] L1(string s) { return System.Text.Encoding.GetEncoding(28591).GetBytes(s); }
+    static byte[] U8(string s) { return System.Text.Encoding.UTF8.GetBytes(s); }
+
+    public static void TestColumnsAnsiBufferAreIdentity()
+    {
+        Eq(5, ColumnMap.ToBuffer(2, 6, 0, 0, L1("20°C x")), "ansi");
+    }
+
+    public static void TestColumnsUtf8BufferAreIdentity()
+    {
+        // the engine reads the UTF-8 file's bytes as Latin-1: the degree sign counts 2 bytes on both sides
+        Eq(6, ColumnMap.ToBuffer(2, 7, 4, 65001, U8("20°C x")), "utf-8");
+    }
+
+    public static void TestColumnsBomShiftsLineOneOnly()
+    {
+        Eq(0, ColumnMap.ToBuffer(1, 4, 1, 65001, U8("*PART")), "line 1 after the 3 BOM bytes");
+        Eq(3, ColumnMap.ToBuffer(2, 4, 1, 65001, U8("*PART")), "line 2");
+    }
+
+    public static void TestColumnsAnsiConvertedToUtf8CountCharacters()
+    {
+        // disk: one byte per character; buffer: UTF-8, so after the degree sign each column is one byte further
+        Eq(6, ColumnMap.ToBuffer(2, 6, 0, 65001, U8("20°C x")), "converted");
+    }
+
+    public static void TestColumnsUtf16CannotBeMapped()
+    {
+        foreach (int enc in new[] { 2, 3, 6, 7 }) Eq(-1, ColumnMap.ToBuffer(2, 1, enc, 65001, U8("x")), "utf-16 " + enc);
+    }
+
+    public static void TestColumnsClampToTheLine()
+    {
+        Eq(3, ColumnMap.ToBuffer(2, 40, 0, 0, L1("abc")), "clamped");
+    }
+
+    // N3 Task 2: which findings get painted
+    public static void TestPainterSelectsThisFilesFindingsInOrderCapped()
+    {
+        List<Finding> all = new List<Finding>();
+        for (int i = 5; i > 0; i--) all.Add(new Finding { File = "sub/a.k", Line = i, Column = 1, EndColumn = 2 });
+        all.Add(new Finding { File = "main.k", Line = 1, Column = 1, EndColumn = 2 });
+        IList<Finding> got = Painter.Select(all, "sub/a.k", 3);
+        Eq("1,2,3", string.Join(",", got.Select(f => f.Line.ToString()).ToArray()), "first three lines of sub/a.k");
+    }
+
     // Task 4: panel text
     public static void TestSummaryForAModel()
     {

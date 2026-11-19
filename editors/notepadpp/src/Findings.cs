@@ -21,6 +21,7 @@ namespace Deckcheck.Npp
     public class Finding
     {
         public string File, Severity, Code, Message;
+        public string Path;  // absolute, set by the plugin from the engine's working directory
         public int Line, Column, EndColumn;
     }
 
