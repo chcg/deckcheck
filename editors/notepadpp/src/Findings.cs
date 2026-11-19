@@ -16,6 +16,8 @@ namespace Deckcheck.Npp
         public string Main;
         public int Files;
         public bool Alone;
+        public List<string> Reached = new List<string>();       // as the engine prints them (relative)
+        public List<string> ReachedPaths = new List<string>();  // absolute, resolved on the engine's worker thread
     }
 
     public class Finding
@@ -62,7 +64,12 @@ namespace Deckcheck.Npp
             if (!root.ContainsKey("models")) throw new EngineError("engine too old: no models in its output");
             CheckResult r = new CheckResult();
             foreach (Dictionary<string, object> m in List(root, "models"))
-                r.Models.Add(new Model { Main = Str(m, "main"), Files = Int(m, "files"), Alone = (bool)m["alone"] });
+            {
+                if (!m.ContainsKey("reached")) throw new EngineError("engine too old: no reached files in its output");
+                Model model = new Model { Main = Str(m, "main"), Files = Int(m, "files"), Alone = (bool)m["alone"] };
+                foreach (object f in (IEnumerable)m["reached"]) model.Reached.Add((string)f);
+                r.Models.Add(model);
+            }
             foreach (Dictionary<string, object> d in List(root, "diagnostics"))
                 r.Diagnostics.Add(new Finding
                 {

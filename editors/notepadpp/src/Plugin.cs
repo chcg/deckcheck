@@ -19,7 +19,8 @@ namespace Deckcheck.Npp
         static IntPtr _dockData = IntPtr.Zero;
         static EngineRun _run;
         static int _gen;
-        static List<string> _modelFolders = new List<string>();
+        static HashSet<string> _reached = new HashSet<string>(StringComparer.OrdinalIgnoreCase);  // files of the last checked models
+        static readonly PaintMemo _memo = new PaintMemo();
         static readonly HashSet<string> _unsaved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         static bool _failedOnce;
 
@@ -31,12 +32,12 @@ namespace Deckcheck.Npp
         static string PluginDir { get { return Path.GetDirectoryName(typeof(Plugin).Assembly.Location); } }
         static string EnginePath { get { return Path.Combine(Path.Combine(PluginDir, "engine"), "deckcheck.exe"); } }
 
-        public static bool ChecksOnSave(string path, IEnumerable<string> modelFolders)
+        /// Save checks a deck, or any file the last checked model reached; a note beside the model starts nothing.
+        public static bool ChecksOnSave(string path, IEnumerable<string> reached)
         {
             string ext = Path.GetExtension(path).ToLowerInvariant();
             if (DeckSuffixes.Contains(ext)) return true;
-            string folder = Path.GetDirectoryName(path).TrimEnd('\\');
-            return modelFolders.Any(f => string.Equals(f.TrimEnd('\\'), folder, StringComparison.OrdinalIgnoreCase));
+            return reached.Any(f => string.Equals(f, path, StringComparison.OrdinalIgnoreCase));
         }
 
         static Settings Config
@@ -98,14 +99,14 @@ namespace Deckcheck.Npp
                     if (h.HwndFrom == Entry.CurrentScintilla()) ShowCalltip(h.HwndFrom, Marshal.ReadIntPtr(raw, 24).ToInt64());
                     break;
                 case SCN_DWELLEND:
-                    Win.Send(h.HwndFrom, SCI_CALLTIPCANCEL, 0, 0);
+                    if (_calltipShown) { Win.Send(h.HwndFrom, SCI_CALLTIPCANCEL, 0, 0); _calltipShown = false; }
                     break;
                 case Win.NPPN_FILESAVED:
                 {
                     string path = PathOfBuffer(h.IdFrom);
                     if (path == null) break;
                     _unsaved.Remove(path);
-                    if (!Config.Disabled && ChecksOnSave(path, _modelFolders)) Check(path, false);
+                    if (!Config.Disabled && ChecksOnSave(path, _reached)) Check(path, false);
                     break;
                 }
                 case Win.NPPN_SHUTDOWN:
@@ -127,11 +128,7 @@ namespace Deckcheck.Npp
             }
         }
 
-        static bool InModel(string path)
-        {
-            string folder = Path.GetDirectoryName(path).TrimEnd('\\');
-            return _modelFolders.Any(f => string.Equals(f.TrimEnd('\\'), folder, StringComparison.OrdinalIgnoreCase));
-        }
+        static bool InModel(string path) { return _reached.Contains(path); }
 
         static string CurrentPath()
         {
@@ -175,7 +172,7 @@ namespace Deckcheck.Npp
             }
             CancelRun();
             int gen = ++_gen;
-            ShowPanel();
+            if (requested) ShowPanel();  // a save updates the panel but never forces it open
             ThePanel.ShowRunning(path);
             Trace.Write("check_started", "file", path);
             IList<string> mains = Config.MainDecksFor(Path.GetDirectoryName(path));
@@ -198,17 +195,20 @@ namespace Deckcheck.Npp
                 Trace.Write("check_error", "file", path, "error", o.Error);
                 return;
             }
-            CheckResult r = o.Result;
+            CheckResult r = o.Result;  // paths already resolved on the worker thread
             _lastFolder = o.Folder;
-            foreach (Finding f in r.Diagnostics) f.Path = Path.GetFullPath(Path.Combine(o.Folder, f.File));
             _lastResult = r;
-            _modelFolders = r.Models.Select(m => Path.GetDirectoryName(Path.GetFullPath(Path.Combine(o.Folder, m.Main))))
-                                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            _resultGen++;
+            _painter.Forget();
+            _reached = new HashSet<string>(r.Models.SelectMany(m => m.ReachedPaths).Concat(new[] { path }),
+                                           StringComparer.OrdinalIgnoreCase);
             List<string> unsaved = _unsaved.Where(InModel).OrderBy(x => x).ToList();
+            System.Diagnostics.Stopwatch ui = System.Diagnostics.Stopwatch.StartNew();
             ThePanel.ShowResult(r, o.Seconds, path, unsaved);
+            long uiMs = ui.ElapsedMilliseconds;
             Trace.Write("check_done", "file", path, "errors", r.Errors, "warnings", r.Warnings, "rows", r.Diagnostics.Count,
                         "models", r.Models.Select(m => m.Main).ToArray(), "alone", r.Models.Any(m => m.Alone),
-                        "unsaved", unsaved.ToArray(), "seconds", o.Seconds);
+                        "unsaved", unsaved.ToArray(), "seconds", o.Seconds, "panel_ms", uiMs);
             PaintActive();
             int row;  // end-to-end test hook, like the trace: off unless the variable is set
             if (int.TryParse(Environment.GetEnvironmentVariable("DECKCHECK_NPP_TEST_JUMP"), out row) && row < r.Diagnostics.Count)
@@ -242,31 +242,38 @@ namespace Deckcheck.Npp
         }
 
         /// Squiggles in the active document for the last result (spec §4); none while disabled.
+        static int _resultGen;
+
         static void PaintActive()
         {
-            if (_lastResult == null || Config.Disabled) return;
             string path = CurrentPath();
             if (string.IsNullOrEmpty(path)) return;
             IntPtr sci = Entry.CurrentScintilla();
+            if (Config.Disabled)
+            {
+                _painter.Clear(sci);  // a tab painted before Disable is cleared when it becomes active
+                Trace.Write("painted", "file", path, "count", 0, "capped", false, "first_text", "", "first_line", 0);
+                return;
+            }
+            if (_lastResult == null || !_memo.Take(path, _resultGen)) return;  // painted for this result: its indicators moved with edits
             List<Finding> all = _lastResult.Diagnostics.Where(f => string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)).ToList();
             IList<Finding> mine = Painter.Select(all, path, Painter.Cap);
-            int n = _painter.Paint(sci, CurrentEncoding(), mine);
+            int n = _painter.Paint(sci, path, CurrentEncoding(), mine);
             Trace.Write("painted", "file", path, "count", n, "capped", all.Count > Painter.Cap,
                         "first_text", _painter.Ranges.Count > 0 ? Painter.Text(sci, _painter.Ranges[0]) : "",
                         "first_line", _painter.Ranges.Count > 0 ? _painter.Ranges[0].Finding.Line : 0);
             string at = Environment.GetEnvironmentVariable("DECKCHECK_NPP_TEST_DWELL");  // test hook, off unless set
-            if (!string.IsNullOrEmpty(at) && _painter.Ranges.Count > 0)
-            {
-                int k = int.Parse(at);
-                if (k < _painter.Ranges.Count) ShowCalltip(sci, _painter.Ranges[k].Start);
-            }
+            int k;
+            if (int.TryParse(at, out k) && k >= 0 && k < _painter.Ranges.Count) ShowCalltip(sci, _painter.Ranges[k].Start);
         }
+
+        static bool _calltipShown;
 
         static void ShowCalltip(IntPtr sci, long pos)
         {
-            PaintedRange hit = _painter.Ranges.FirstOrDefault(r => r.Start <= pos && pos < r.End);
+            Finding hit = _painter.FindingAt(sci, CurrentPath(), pos);  // from the indicator under the mouse
             if (hit == null) return;
-            string text = hit.Finding.Code + " " + hit.Finding.Severity + ": " + hit.Finding.Message;
+            string text = hit.Code + " " + hit.Severity + ": " + hit.Message;
             int cp = Win.Send(sci, Win.SCI_GETCODEPAGE, 0, 0).ToInt32();
             byte[] bytes = (cp == ColumnMap.CodepageUtf8 ? Encoding.UTF8 : Encoding.Default).GetBytes(text + "\0");
             IntPtr p = Marshal.AllocHGlobal(bytes.Length);
@@ -274,6 +281,7 @@ namespace Deckcheck.Npp
             {
                 Marshal.Copy(bytes, 0, p, bytes.Length);
                 Win.Send(sci, SCI_CALLTIPSHOW, pos, p.ToInt64());
+                _calltipShown = true;
             }
             finally { Marshal.FreeHGlobal(p); }
             Trace.Write("calltip", "text", text);
@@ -302,6 +310,7 @@ namespace Deckcheck.Npp
                 Win.SendMessage(Entry.Npp, Win.NPPM_DMMREGASDCKDLG, IntPtr.Zero, _dockData);
             }
             Win.SendMessage(Entry.Npp, Win.NPPM_DMMSHOW, IntPtr.Zero, p.Handle);
+            Trace.Write("panel_shown");
         }
 
         public static void EditMainDecks()
@@ -327,10 +336,11 @@ namespace Deckcheck.Npp
             Config.Disabled = !Config.Disabled;
             Config.Save();
             Entry.SetChecked(Entry.ItemDisable, Config.Disabled);
+            _memo.Forget();
             if (Config.Disabled)
             {
                 CancelRun();
-                _painter.Clear(Entry.CurrentScintilla());
+                foreach (IntPtr view in Entry.Views) _painter.Clear(view);  // both split views; other tabs on activation
                 Trace.Write("painted", "file", CurrentPath(), "count", 0, "capped", false, "first_text", "", "first_line", 0);
                 if (_panel != null) _panel.ShowMessage("deckcheck is disabled. Plugins > deckcheck > Disable turns it back on.");
             }

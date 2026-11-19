@@ -4,7 +4,10 @@
     {
       "main": "main.k",
       "files": 1,
-      "alone": false
+      "alone": false,
+      "reached": [
+        "main.k"
+      ]
     }
   ],
   "diagnostics": [

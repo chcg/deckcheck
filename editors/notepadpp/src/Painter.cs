@@ -14,6 +14,22 @@ namespace Deckcheck.Npp
         public Finding Finding;
     }
 
+    /// Which buffers were painted for which result: a buffer is painted once per result, then its indicators move with
+    /// edits; repainting from the result's line numbers after an edit would put squiggles on the wrong fields.
+    public sealed class PaintMemo
+    {
+        readonly HashSet<string> _done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int _gen = -1;
+
+        public bool Take(string path, int gen)
+        {
+            if (gen != _gen) { _done.Clear(); _gen = gen; }
+            return _done.Add(path);
+        }
+
+        public void Forget() { _done.Clear(); _gen = -1; }
+    }
+
     public sealed class Painter
     {
         public const int Cap = 2000;
@@ -65,19 +81,42 @@ namespace Deckcheck.Npp
             Ranges = new List<PaintedRange>();
         }
 
-        public int Paint(IntPtr sci, int encoding, IList<Finding> mine)
+        const uint SCI_SETINDICATORVALUE = 2502, SCI_INDICATORVALUEAT = 2507;
+        readonly Dictionary<string, List<Finding>> _painted = new Dictionary<string, List<Finding>>(StringComparer.OrdinalIgnoreCase);
+
+        /// Each filled range carries the value (index + 1) of its finding, so a hover finds the finding from the
+        /// indicator itself: the ranges move with edits, the positions captured here do not.
+        public int Paint(IntPtr sci, string path, int encoding, IList<Finding> mine)
         {
             Clear(sci);
+            List<Finding> painted = new List<Finding>();
             foreach (Finding f in mine)
             {
                 PaintedRange r = RangeOf(sci, encoding, f);
                 if (r == null) continue;
+                painted.Add(f);
                 Win.Send(sci, SCI_SETINDICATORCURRENT, f.Severity == "error" ? _error : _warning, 0);
+                Win.Send(sci, SCI_SETINDICATORVALUE, painted.Count, 0);
                 Win.Send(sci, SCI_INDICATORFILLRANGE, r.Start, r.End - r.Start);
                 Ranges.Add(r);
             }
+            _painted[path] = painted;
             return Ranges.Count;
         }
+
+        public Finding FindingAt(IntPtr sci, string path, long pos)
+        {
+            List<Finding> painted;
+            if (!_painted.TryGetValue(path, out painted)) return null;
+            foreach (int ind in new[] { _error, _warning })
+            {
+                int v = Win.Send(sci, SCI_INDICATORVALUEAT, ind, pos).ToInt32();
+                if (v > 0 && v <= painted.Count) return painted[v - 1];
+            }
+            return null;
+        }
+
+        public void Forget() { _painted.Clear(); }
 
         /// The buffer range of a finding's field, clamped to its line; null when it cannot be mapped.
         public static PaintedRange RangeOf(IntPtr sci, int encoding, Finding f)

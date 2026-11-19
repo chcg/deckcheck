@@ -109,7 +109,13 @@ namespace Deckcheck.Npp
                     CloseJob();
                 }
                 if (p.ExitCode == 0 || p.ExitCode == 1)
+                {
                     o.Result = Findings.Parse(output);
+                    // resolved here, off the UI thread: a model can have tens of thousands of findings (spec §5)
+                    foreach (Finding f in o.Result.Diagnostics) f.Path = Path.GetFullPath(Path.Combine(o.Folder, f.File));
+                    foreach (Model m in o.Result.Models)
+                        foreach (string f in m.Reached) m.ReachedPaths.Add(Path.GetFullPath(Path.Combine(o.Folder, f)));
+                }
                 else
                 {
                     string msg = (err ?? "").Trim();

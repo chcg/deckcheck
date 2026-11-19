@@ -142,3 +142,51 @@ Status: **open**, **done** (with where), or **pinned** (waiting on Chintan).
 - Very low disk priority can slow an opted-in check behind antivirus or sync tools.
 - `on_edit` sends a status per keystroke on a big model (status churn while typing).
 - Summary popup after a save only when the check took 10 s or more (a 6-9 s save ends with a status-bar change only).
+
+## Notepad++ plugin, N0-N3 (2026-11-19)
+
+**Pinned for release (Chintan decides):**
+- Version number: the engine gained `--for`, `--main-deck`, `--background` and JSON `models`/`reached`. The spec says
+  0.1.x; semver says 0.2.0. Plugin and engine ship from the same tag.
+- VirusTotal scan of the release zip, uploaded by Chintan (N0 Task 4, deferred).
+- Licence review of `THIRD-PARTY-LICENSES.txt` in the zip: OpenSSL (Apache-2.0), mpdecimal, liblzma and the VC runtime
+  are named but their full texts are not reproduced.
+- Committed plans carry the repo path, the owner's first name and agent instructions (as the earlier M-stage plans
+  do). `docs/n0-spike.md` §7 narrows the Windows user name. Decide before publishing.
+
+**Accepted:** do-no-harm gate open time +65 ms (0.24 s to 0.31 s) on the 169 MB Yaris include while a full check runs
+(`docs/n3-harm-gate.md`). The type and scroll measures resolve only to one display frame (about 16.7 ms).
+
+**Rulings (cost if wrong):**
+- The build uses only the Framework csc (C# 5) and ilasm; downloaded Roslyn and ildasm were blocked and removed.
+  Cost: C# 5 syntax only.
+- `--for` searches the file's folder and two parents, non-recursively; the nearest folder whose decks reach the file
+  wins. Cost: a main deck three or more levels up, or below the file, needs *Main decks...*.
+- Save triggers a check for deck suffixes (`.k .key .dyn .inc`) or any file the last model reached (JSON `reached`).
+  Cost: a deck-suffixed file outside any model still starts a check (checked alone).
+- Test hooks `DECKCHECK_NPP_TRACE`, `DECKCHECK_NPP_TEST_JUMP` and `DECKCHECK_NPP_TEST_DWELL` ship in the plugin, off
+  unless set. Cost: none known.
+- Calltips tested through a hook, not a real mouse dwell. Cost: real dwell delivery is untested until the owner trial.
+- A buffer is painted once per result; its indicators then move with edits. Cost: a buffer edited before the result
+  arrives is painted from the disk's line numbers.
+- The BOM line-1 shift is unit-tested only; a finding on line 1 of a real deck does not occur.
+- The E2E tests for the final-review fixes were written before the fixes but could not be shown red against the old
+  plugin (the old engine was refused first); the unit tests for the same fixes went red first.
+
+**Deferred minors (final review):**
+- `EngineRun`: create the Job object before `Process.Start` and kill the process if `AssignProcessToJobObject` fails
+  (its result is ignored now).
+- `Cancel()` takes a lock the worker holds across `Process.Start`; Save All over several decks can block the UI thread
+  briefly per start. Debounce saves or use a volatile flag.
+- The jump ignores `NPPM_DOOPEN`'s result: if the include is gone, it selects in whatever tab is active.
+- Unsaved tracking uses the active tab's path on `SCN_SAVEPOINT*`, not the notifying buffer's.
+- `ToggleDisabled`: if `Settings.Save()` throws, the state is flipped but the menu tick and squiggles are not.
+- A file reached by two main decks reports each shared-include finding twice (rows, counts, cap). De-duplicate.
+- A `--main-deck` that does not reach the file falls back to "alone", but the panel says "no main deck in this folder";
+  a deleted main deck in settings fails every check in that folder with a bare "no such file".
+
+**Declined to judge (final review), standing:**
+- Exceptions escaping the native exports (for example `DeckcheckNpp.dll` missing at load), WinForms panel behaviour
+  when floated or driven by keyboard, and real mouse dwell: left to the owner trial.
+- Double-byte ANSI code pages held as UTF-8: `ColumnMap` assumes one disk byte per character.
+- `Exports.il` beyond the evidence of the e2e suite loading it; Alt+Shift+K conflicts with other plugins.

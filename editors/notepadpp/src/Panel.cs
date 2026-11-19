@@ -37,6 +37,15 @@ namespace Deckcheck.Npp
             _list.Columns.Add("Location", 180);
             _list.Columns.Add("Message", 700);
             _list.ItemActivate += delegate { Activate_(); };
+            _list.VirtualMode = true;  // rows are built only when shown: a model can have tens of thousands (spec §5)
+            _list.VirtualListSize = 0;
+            _list.RetrieveVirtualItem += (s, e) =>
+            {
+                Finding f = _rows[e.ItemIndex];
+                ListViewItem it = new ListViewItem(PanelText.Row(f));
+                it.ForeColor = f.Severity == "error" ? Color.Firebrick : Color.DarkGoldenrod;
+                e.Item = it;
+            };
             _notes.Dock = DockStyle.Bottom;
             _notes.Multiline = true;
             _notes.ReadOnly = true;
@@ -55,32 +64,25 @@ namespace Deckcheck.Npp
         public void ShowRunning(string file)
         {
             _summary.Text = "Checking the model of " + Path.GetFileName(file) + "...";
-            _list.Items.Clear();
             _rows = new List<Finding>();
+            _list.VirtualListSize = 0;
             _notes.Text = "";
         }
 
         public void ShowMessage(string message)
         {
             _summary.Text = message;
-            _list.Items.Clear();
             _rows = new List<Finding>();
+            _list.VirtualListSize = 0;
             _notes.Text = "";
         }
 
         public void ShowResult(CheckResult r, double seconds, string file, IEnumerable<string> unsaved)
         {
             _summary.Text = PanelText.Summary(r, seconds, file);
-            _list.BeginUpdate();
-            _list.Items.Clear();
             _rows = r.Diagnostics;
-            foreach (Finding f in _rows)
-            {
-                ListViewItem it = new ListViewItem(PanelText.Row(f));
-                it.ForeColor = f.Severity == "error" ? Color.Firebrick : Color.DarkGoldenrod;
-                _list.Items.Add(it);
-            }
-            _list.EndUpdate();
+            _list.VirtualListSize = _rows.Count;
+            _list.Invalidate();
             _notes.Text = PanelText.Notes(r, unsaved);
         }
 

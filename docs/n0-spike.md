@@ -69,7 +69,13 @@ From `github.com/molsonkiko/NppCSharpPluginPack` (the template JSON Tools' autho
 
 The scan looked for the home path, the user name and the repo path, in UTF-8 and UTF-16LE, case-insensitively. One
 hit: the 4-letter user name matched inside a public keyword name in `deckcheck/data/keywords.json` (a substring of an
-LS-DYNA keyword). The same bytes ship in the PyPI package. No home or repo path is embedded. No fix needed.
+LS-DYNA keyword). The same bytes ship in the PyPI package.
+
+**Correction (final review, 2026-11-19):** a repo path *was* embedded. pip writes `direct_url.json` into the
+installed package's `.dist-info`, holding the source folder as a `file:///` URL with forward slashes. The scan
+looked only for the backslash form, so it missed it. The scan now looks for the backslash, forward-slash and
+`file:///` forms. `build_engine.ps1` deletes `direct_url.json` and fails the build if any home or repo path remains,
+and `tools/npp/package.py` refuses to package a file that contains one.
 
 ## 8. Carried forward
 

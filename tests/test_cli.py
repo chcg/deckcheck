@@ -108,7 +108,7 @@ def test_for_checks_the_model_the_file_belongs_to(capsys, monkeypatch, tmp_path)
     monkeypatch.chdir(tmp_path)
     code, out, _ = run(capsys, "--for", "part.k", "--format", "json")
     data = json.loads(out)
-    assert code == 1 and data["models"] == [{"main": "main.k", "files": 2, "alone": False}]
+    assert code == 1 and data["models"] == [{"main": "main.k", "files": 2, "alone": False, "reached": ["main.k", "part.k"]}]
     assert [d["code"] for d in data["diagnostics"]] == ["DC004"]
 
 
@@ -117,7 +117,7 @@ def test_for_a_main_deck_checks_it(capsys, monkeypatch, tmp_path):
     _deck(tmp_path / "part.k")
     monkeypatch.chdir(tmp_path)
     code, out, _ = run(capsys, "--for", "main.k", "--format", "json")
-    assert code == 0 and json.loads(out)["models"] == [{"main": "main.k", "files": 2, "alone": False}]
+    assert code == 0 and json.loads(out)["models"] == [{"main": "main.k", "files": 2, "alone": False, "reached": ["main.k", "part.k"]}]
 
 
 def test_for_an_unreached_file_checks_it_alone(capsys, monkeypatch, tmp_path):

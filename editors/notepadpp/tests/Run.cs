@@ -156,7 +156,8 @@ public static class Run
         Eq(true, Plugin.ChecksOnSave(@"C:\m\MAIN.KEY", new string[0]), ".key");
         Eq(true, Plugin.ChecksOnSave(@"C:\m\part.inc", new string[0]), ".inc");
         Eq(false, Plugin.ChecksOnSave(@"C:\m\notes.txt", new string[0]), ".txt");
-        Eq(true, Plugin.ChecksOnSave(@"C:\m\mesh.dat", new[] { @"C:\m" }), "a file in a checked model's folder");
+        Eq(true, Plugin.ChecksOnSave(@"C:\m\mesh.dat", new[] { @"c:\M\mesh.dat" }), "a file the last model reached");
+        Eq(false, Plugin.ChecksOnSave(@"C:\m\notes.txt", new[] { @"C:\m\main.k" }), "a file beside the model, not in it");
     }
 
     // Task 3: running the engine
@@ -195,6 +196,26 @@ public static class Run
         Eq(null, o.Error, "error");
         Eq(false, o.Cancelled, "cancelled");
         Eq("main.k", o.Result.Models[0].Main, "main");
+    }
+
+    public static void TestEngineRunResolvesPathsOnTheWorker()
+    {
+        ClearFakeEnv();
+        Env("FAKE_JSON", Path.GetFullPath(Path.Combine(Data, "seeded.json")));
+        string file = Path.GetFullPath(Path.Combine(Data, "seeded.json"));
+        RunOutcome o = RunFake(file, new string[0], 20000);
+        string main = Path.Combine(Path.GetDirectoryName(file), "main.k");
+        Eq(main, o.Result.Diagnostics[0].Path, "finding path");
+        Eq(main, o.Result.Models[0].ReachedPaths[0], "reached path");
+    }
+
+    public static void TestPaintMemoPaintsEachBufferOncePerResult()
+    {
+        PaintMemo m = new PaintMemo();
+        Eq(true, m.Take(@"C:\m\a.k", 1), "first paint");
+        Eq(false, m.Take(@"c:\M\A.K", 1), "same result, same file: keep the indicators, which move with edits");
+        Eq(true, m.Take(@"C:\m\b.k", 1), "another file");
+        Eq(true, m.Take(@"C:\m\a.k", 2), "a new result repaints");
     }
 
     public static void TestEngineRunPassesForMainDecksAndTheFilesFolder()
@@ -272,6 +293,7 @@ public static class Run
         Eq(1, r.Models.Count, "models");
         Eq("main.k", r.Models[0].Main, "main");
         Eq(false, r.Models[0].Alone, "alone");
+        Eq("main.k", string.Join(",", r.Models[0].Reached.ToArray()), "reached");
         Finding f = r.Diagnostics.First(d => d.Code == "DC001");
         Eq(8, f.Line, "line"); Eq(29, f.Column, "column"); Eq(31, f.EndColumn, "end"); Eq("error", f.Severity, "severity");
         Eq(r.Diagnostics.Count(d => d.Severity == "error"), r.Errors, "errors");

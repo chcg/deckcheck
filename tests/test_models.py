@@ -43,6 +43,31 @@ def test_main_decks_override(tmp_path):
     assert models_for_file(part, [a]) == ([a], False)
 
 
+def test_include_in_a_subfolder_finds_its_main_above(tmp_path):
+    main = _deck(tmp_path / "main.k", "mesh/part.k")
+    part = _deck(tmp_path / "mesh" / "part.k")
+    assert models_for_file(part) == ([main], False)
+
+
+def test_a_deck_that_a_main_above_includes_is_not_its_own_model(tmp_path):
+    main = _deck(tmp_path / "main.k", "sub/a.k")
+    a = _deck(tmp_path / "sub" / "a.k", "b.k")
+    _deck(tmp_path / "b.k")
+    assert models_for_file(a) == ([main], False)
+
+
+def test_search_goes_up_two_folders_at_most(tmp_path):
+    _deck(tmp_path / "main.k", "a/b/c/part.k")
+    part = _deck(tmp_path / "a" / "b" / "c" / "part.k")
+    assert models_for_file(part) == ([part], False)  # three levels up: not searched; a deck is its own model
+
+
+def test_folders_below_the_file_are_not_scanned(tmp_path, monkeypatch):
+    part = _deck(tmp_path / "part.k")
+    _deck(tmp_path / "deep" / "deeper" / "main.k", "../../part.k")
+    assert models_for_file(part) == ([part], False)
+
+
 def test_main_deck_that_does_not_reach_the_file(tmp_path):
     a = _deck(tmp_path / "a.k")
     part = _deck(tmp_path / "part.k")

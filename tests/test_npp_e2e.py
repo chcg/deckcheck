@@ -179,6 +179,7 @@ def test_painting_is_capped(npp_exe, trace, tmp_path):
         done = drive.wait_event(trace, "check_done")
         painted = drive.wait_event(trace, "painted")
         assert done["rows"] >= 2500 and painted["count"] == 2000 and painted["capped"] is True
+        assert done["panel_ms"] < 200  # a virtual list: rows are built only when shown
     finally:
         npp.close()
 
@@ -213,7 +214,86 @@ def test_switching_tabs_repaints(npp_exe, trace, tmp_path):
         user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44095, 0)  # back to main.k
         time.sleep(1.5)
         repaints = [e for e in drive.events(trace)[n:] if e["event"] == "painted"]
-        assert [(Path(e["file"]).name, e["count"] >= 2) for e in repaints] == [("other.txt", False), ("main.k", True)]
+        # main.k keeps the indicators painted for this result (they move with edits); it is not repainted
+        assert [(Path(e["file"]).name, e["count"]) for e in repaints] == [("other.txt", 0)]
+    finally:
+        npp.close()
+
+
+def test_an_edit_then_a_tab_switch_keeps_the_squiggles_on_their_fields(npp_exe, trace, tmp_path):
+    folder = _copy("seeded_mistakes", tmp_path)
+    other = tmp_path / "other.txt"
+    other.write_text("notes\n")
+    npp = drive.Npp(npp_exe, [folder / "main.k", other], {"DECKCHECK_NPP_TRACE": str(trace)})
+    try:
+        drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44095, 0)
+        time.sleep(1)
+        npp.command("Check model")
+        drive.wait_event(trace, "painted")
+        npp.sci(2025, 0)  # SCI_GOTOPOS 0
+        npp.sci(SCI_NEWLINE)  # every finding is now one line lower in the buffer
+        n = len(drive.events(trace))
+        drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44096, 0)
+        time.sleep(1)
+        drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44095, 0)
+        time.sleep(1.5)
+        assert [Path(e["file"]).name for e in drive.events(trace)[n:] if e["event"] == "painted"] == ["other.txt"]
+    finally:
+        npp.kill()
+
+
+def test_saving_a_note_beside_the_model_starts_no_check(npp_exe, trace, tmp_path):
+    folder = _copy("seeded_mistakes", tmp_path)
+    note = folder / "notes.txt"
+    note.write_text("notes\n")
+    npp = drive.Npp(npp_exe, [folder / "main.k", note], {"DECKCHECK_NPP_TRACE": str(trace)})
+    try:
+        drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44095, 0)
+        time.sleep(1)
+        npp.command("Check model")
+        drive.wait_event(trace, "check_done")
+        drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44096, 0)  # notes.txt
+        time.sleep(1)
+        n = len(drive.events(trace))
+        npp.sci(SCI_NEWLINE)
+        npp.save()
+        time.sleep(3)
+        assert [e["event"] for e in drive.events(trace)[n:] if e["event"].startswith("check")] == []
+    finally:
+        npp.kill()
+
+
+def test_a_save_triggered_check_does_not_open_the_panel(npp_exe, trace, tmp_path):
+    main = _copy("inc_nested_main", tmp_path) / "main.k"
+    npp = drive.Npp(npp_exe, [main], {"DECKCHECK_NPP_TRACE": str(trace)})
+    try:
+        npp.sci(SCI_NEWLINE)
+        npp.save()
+        drive.wait_event(trace, "check_done")
+        assert "panel_shown" not in [e["event"] for e in drive.events(trace)]
+    finally:
+        npp.close()
+
+
+def test_disable_clears_squiggles_in_other_tabs_too(npp_exe, trace, tmp_path):
+    a = _copy("seeded_mistakes", tmp_path) / "main.k"
+    b = _seeded_variant(tmp_path, "second", "latin-1", False)
+    npp = drive.Npp(npp_exe, [a, b], {"DECKCHECK_NPP_TRACE": str(trace)})
+    try:
+        for tab in (44095, 44096):  # check both, so both documents carry squiggles
+            drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, tab, 0)
+            time.sleep(1)
+            n = len(drive.events(trace))
+            npp.command("Check model")
+            drive.wait_event(trace, "painted", after=n)
+        drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44095, 0)  # back to a: painted from the second result
+        time.sleep(1.5)
+        npp.command("Disable")
+        drive.wait_event(trace, "disabled")
+        n = len(drive.events(trace))
+        drive.user32.PostMessageW(npp.hwnd, drive.WM_COMMAND, 44096, 0)
+        cleared = drive.wait_event(trace, "painted", after=n)
+        assert Path(cleared["file"]).parent.name == "second" and cleared["count"] == 0
     finally:
         npp.close()
 

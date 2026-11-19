@@ -31,6 +31,14 @@ def privacy_hits(root: Path, needles: list[str]) -> list[tuple[str, str]]:
     return sorted(hits)
 
 
+def needle_forms(path: str) -> list[str]:
+    """A local path as it can appear in a build: backslashes, forward slashes, and a file:/// URL."""
+    if not path:
+        return []
+    fwd = path.replace("\\", "/")
+    return [path, fwd, "file:///" + fwd]
+
+
 def _time(cmd, cwd=None) -> float:
     t = time.perf_counter()
     subprocess.run(cmd, cwd=cwd, capture_output=True, timeout=3600)
@@ -58,11 +66,14 @@ def main() -> int:
         checks["bumper"] = _check_times(BUMPER, 5)
     if YARIS.exists():
         checks["yaris"] = _check_times(YARIS, 3)
-    needles = [str(Path.home()), os.environ.get("USERNAME", ""), str(Path.cwd().resolve())]
+    kinds = {}
+    for kind, base in (("home", str(Path.home())), ("user", os.environ.get("USERNAME", "")),
+                       ("repo", str(Path.cwd().resolve()))):
+        for form in (needle_forms(base) if kind != "user" else [base]):
+            kinds.setdefault(form, kind)
     out = {"zip_mb": round(zip_mb, 1), "folder_mb": round(sum(p.stat().st_size for p in files) / 2**20, 1),
            "files": len(files), "start_median_s": round(start, 3), "checks": checks,
-           "privacy_hits": [[f, "home" if n == needles[0] else "user" if n == needles[1] else "repo"]
-                            for f, n in privacy_hits(DIST, needles)]}
+           "privacy_hits": sorted({(f, kinds[n]) for f, n in privacy_hits(DIST, list(kinds))})}
     Path("build-engine/measure.json").write_text(json.dumps(out, indent=1))
     print(json.dumps(out, indent=1))
     return 0

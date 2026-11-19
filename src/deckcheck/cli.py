@@ -1,7 +1,8 @@
 """The command line (spec §6): deckcheck MAIN.k [MAIN2.k ...] [--format text|json] [--ignore CODE ...], or
 deckcheck --for FILE [--main-deck DECK ...] to check the model(s) a file belongs to (Notepad++ spec §3).
 Formats reports; contains no checking logic. Exit 0: no errors; 1: an error; 2: could not run.
-JSON "models": one entry per checked main deck; "files" counts every file its include tree reached, the main included."""
+JSON "models": one entry per checked main deck; "files" counts every file its include tree reached, the main included,
+and "reached" lists them (an editor uses it to tell whether a saved file belongs to the checked model)."""
 import argparse
 import json
 import os
@@ -74,7 +75,8 @@ def _json(reports: list[Report], alone: bool = False) -> str:
     diags = [d for r in reports for d in r.diagnostics]
     return json.dumps({
         "version": 1,
-        "models": [{"main": _rel(r.main), "files": len(r.tree.files), "alone": alone} for r in reports],
+        "models": [{"main": _rel(r.main), "files": len(r.tree.files), "alone": alone,
+                    "reached": sorted({_rel(f.path) for f in r.tree.files})} for r in reports],
         "diagnostics": [{"file": _rel(d.path), "line": d.line, "column": d.start + 1, "end_column": d.end + 1,
                          "severity": d.severity, "code": d.code, "message": d.message,
                          "related": [{"file": _rel(x.path), "line": x.line, "message": x.message} for x in d.related]}
