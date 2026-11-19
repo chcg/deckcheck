@@ -9,3 +9,4 @@ bakeoff/scratch/
 dist/
 build-engine/
 .venv-freeze/
+editors/notepadpp/out/
