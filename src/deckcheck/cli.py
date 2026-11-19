@@ -1,5 +1,7 @@
-"""The command line (spec §6): deckcheck MAIN.k [MAIN2.k ...] [--format text|json] [--ignore CODE ...].
-Formats reports; contains no checking logic. Exit 0: no errors; 1: an error; 2: could not run."""
+"""The command line (spec §6): deckcheck MAIN.k [MAIN2.k ...] [--format text|json] [--ignore CODE ...], or
+deckcheck --for FILE [--main-deck DECK ...] to check the model(s) a file belongs to (Notepad++ spec §3).
+Formats reports; contains no checking logic. Exit 0: no errors; 1: an error; 2: could not run.
+JSON "models": one entry per checked main deck; "files" counts every file its include tree reached, the main included."""
 import argparse
 import json
 import os
@@ -8,6 +10,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from deckcheck.diagnostics import Report
+from deckcheck.models import models_for_file
 from deckcheck.rules import CODES, check
 
 
@@ -29,8 +32,14 @@ def _plural(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
 
 
-def _text(reports: list[Report]) -> str:
+def _text(reports: list[Report], for_file: Path | None = None, alone: bool = False) -> str:
     lines = []
+    if for_file is not None:
+        if alone:
+            lines.append(f"Checked alone: no main deck includes {_rel(for_file)}")
+        else:
+            lines += [f"Checked as part of {_rel(r.main)}" for r in reports]
+        lines.append("")
     for r in reports:
         for d in r.diagnostics:
             lines.append(f"{_rel(d.path)}:{d.line}:{d.start + 1}  {d.severity:<7}  {d.code}  {d.message}")
@@ -49,10 +58,11 @@ def _text(reports: list[Report]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _json(reports: list[Report]) -> str:
+def _json(reports: list[Report], alone: bool = False) -> str:
     diags = [d for r in reports for d in r.diagnostics]
     return json.dumps({
         "version": 1,
+        "models": [{"main": _rel(r.main), "files": len(r.tree.files), "alone": alone} for r in reports],
         "diagnostics": [{"file": _rel(d.path), "line": d.line, "column": d.start + 1, "end_column": d.end + 1,
                          "severity": d.severity, "code": d.code, "message": d.message,
                          "related": [{"file": _rel(x.path), "line": x.line, "message": x.message} for x in d.related]}
@@ -67,7 +77,11 @@ def _json(reports: list[Report]) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="deckcheck", description="Check keyword decks for LS-DYNA for structural "
                                      "mistakes: dangling references, duplicate ids, bad values, include problems.")
-    parser.add_argument("decks", nargs="+", type=Path, metavar="MAIN.k", help="main deck; includes are followed")
+    parser.add_argument("decks", nargs="*", type=Path, metavar="MAIN.k", help="main deck; includes are followed")
+    parser.add_argument("--for", dest="for_file", type=Path, metavar="FILE",
+                        help="check the model(s) this file belongs to: the decks in its folder that include it")
+    parser.add_argument("--main-deck", action="append", default=[], type=Path, metavar="DECK",
+                        help="with --for: use this main deck instead of scanning the folder (repeatable)")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--ignore", action="append", default=[], metavar="CODE", help="leave out a code (repeatable)")
     parser.add_argument("--version", action="version", version=f"deckcheck {_version()}")
@@ -79,16 +93,24 @@ def main(argv: list[str] | None = None) -> int:
     unknown = sorted(ignore - set(CODES))
     if unknown:
         parser.error(f"unknown code {unknown[0]} (known: {', '.join(CODES)})")
-    for deck in args.decks:
+    if bool(args.decks) == (args.for_file is not None):
+        parser.error("give main decks, or --for FILE, but not both")
+    if args.main_deck and args.for_file is None:
+        parser.error("--main-deck needs --for")
+    for deck in [*args.decks, *([args.for_file] if args.for_file else []), *args.main_deck]:
         if not deck.is_file():
             print(f"deckcheck: {deck}: no such file", file=sys.stderr)
             return 2
+    alone = False
     try:
-        reports = [check(deck) for deck in args.decks]
+        decks = args.decks
+        if args.for_file is not None:
+            decks, alone = models_for_file(args.for_file, args.main_deck)
+        reports = [check(deck) for deck in decks]
     except Exception as e:  # outside any one block: deckcheck could not run (spec §6)
         print(f"deckcheck: internal error: {type(e).__name__}: {e} (please report this)", file=sys.stderr)
         return 2
     for r in reports:
         r.diagnostics[:] = [d for d in r.diagnostics if d.code not in ignore]
-    sys.stdout.write(_json(reports) if args.format == "json" else _text(reports))
+    sys.stdout.write(_json(reports, alone) if args.format == "json" else _text(reports, args.for_file, alone))
     return 1 if any(d.severity == "error" for r in reports for d in r.diagnostics) else 0

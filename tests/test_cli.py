@@ -94,3 +94,68 @@ def test_two_main_decks(capsys):
     code, out, _ = run(capsys, "--format", "json", SEEDED, TORTURE / "base" / "main.k")
     data = json.loads(out)
     assert code == 1 and len({n["main"] for n in data["not_checked"]}) == 2  # each main deck has its own footer
+
+
+def _deck(path, *includes):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("*KEYWORD\n" + "".join(f"*INCLUDE\n{i}\n" for i in includes) + "*END\n", encoding="latin-1")
+    return path
+
+
+def test_for_checks_the_model_the_file_belongs_to(capsys, monkeypatch, tmp_path):
+    _deck(tmp_path / "main.k", "part.k", "missing.k")
+    _deck(tmp_path / "part.k")
+    monkeypatch.chdir(tmp_path)
+    code, out, _ = run(capsys, "--for", "part.k", "--format", "json")
+    data = json.loads(out)
+    assert code == 1 and data["models"] == [{"main": "main.k", "files": 2, "alone": False}]
+    assert [d["code"] for d in data["diagnostics"]] == ["DC004"]
+
+
+def test_for_a_main_deck_checks_it(capsys, monkeypatch, tmp_path):
+    _deck(tmp_path / "main.k", "part.k")
+    _deck(tmp_path / "part.k")
+    monkeypatch.chdir(tmp_path)
+    code, out, _ = run(capsys, "--for", "main.k", "--format", "json")
+    assert code == 0 and json.loads(out)["models"] == [{"main": "main.k", "files": 2, "alone": False}]
+
+
+def test_for_an_unreached_file_checks_it_alone(capsys, monkeypatch, tmp_path):
+    (tmp_path / "notes.inc").write_text("*KEYWORD\n*END\n", encoding="latin-1")
+    monkeypatch.chdir(tmp_path)
+    code, out, _ = run(capsys, "--for", "notes.inc")
+    assert code == 0 and out.splitlines()[0] == "Checked alone: no main deck includes notes.inc"
+
+
+def test_for_with_main_deck_override(capsys, monkeypatch, tmp_path):
+    _deck(tmp_path / "a.k", "part.k")
+    _deck(tmp_path / "b.k", "part.k")
+    _deck(tmp_path / "part.k")
+    monkeypatch.chdir(tmp_path)
+    _, out, _ = run(capsys, "--for", "part.k", "--main-deck", "a.k", "--format", "json")
+    assert [m["main"] for m in json.loads(out)["models"]] == ["a.k"]
+    _, out, _ = run(capsys, "--for", "part.k", "--format", "json")
+    assert [m["main"] for m in json.loads(out)["models"]] == ["a.k", "b.k"]
+
+
+def test_for_missing_file_exits_2(capsys, tmp_path):
+    code, out, err = run(capsys, "--for", tmp_path / "nope.k")
+    assert code == 2 and out == "" and "nope.k" in err
+
+
+def test_decks_and_for_are_exclusive_and_one_is_needed(capsys, tmp_path):
+    with pytest.raises(SystemExit) as e:
+        main([])
+    assert e.value.code == 2
+    with pytest.raises(SystemExit) as e:
+        main([str(SEEDED), "--for", str(SEEDED)])
+    assert e.value.code == 2
+    with pytest.raises(SystemExit) as e:
+        main([str(SEEDED), "--main-deck", str(SEEDED)])
+    assert e.value.code == 2
+
+
+def test_json_models_for_explicit_decks(capsys):
+    _, out, _ = run(capsys, "--format", "json", SEEDED)
+    (m,) = json.loads(out)["models"]
+    assert m["alone"] is False and m["files"] >= 1 and m["main"].endswith("seeded_mistakes/main.k")
