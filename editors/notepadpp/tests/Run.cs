@@ -46,6 +46,72 @@ public static class Run
         throw new Exception("no EngineError for <" + contains + ">");
     }
 
+    // Task 4: panel text
+    public static void TestSummaryForAModel()
+    {
+        CheckResult r = Findings.Parse(File.ReadAllText(Path.Combine(Data, "seeded.json")));
+        Eq("main.k: 1 file, " + r.Errors + " errors, " + r.Warnings + " warnings, 12.4 s",
+           PanelText.Summary(r, 12.43, @"C:\m\main.k"), "summary");
+    }
+
+    public static void TestSummaryForAFileCheckedAlone()
+    {
+        CheckResult r = Findings.Parse(File.ReadAllText(Path.Combine(Data, "seeded.json")));
+        r.Models[0].Alone = true;
+        r.Models[0].Main = "notes.inc";
+        Eq(true, PanelText.Summary(r, 1.0, @"C:\m\notes.inc").StartsWith(
+            "Checked alone: no main deck in this folder includes notes.inc (Plugins > deckcheck > Main decks...)"),
+           "alone summary: " + PanelText.Summary(r, 1.0, @"C:\m\notes.inc"));
+    }
+
+    public static void TestRowText()
+    {
+        Finding f = new Finding { File = "sub/inc.k", Line = 8, Column = 29, EndColumn = 31, Severity = "error",
+                                  Code = "DC001", Message = "*PART mid refers to MAT 99" };
+        Eq("error|DC001|sub/inc.k:8|*PART mid refers to MAT 99", string.Join("|", PanelText.Row(f)), "row");
+    }
+
+    public static void TestNotesListNotCheckedAndUnsaved()
+    {
+        CheckResult r = Findings.Parse(File.ReadAllText(Path.Combine(Data, "seeded.json")));
+        string notes = PanelText.Notes(r, new[] { @"C:\m\part.k" });
+        Eq(true, notes.Contains("Unsaved changes in part.k are not checked."), "unsaved: " + notes);
+        Eq(true, notes.Contains("Not checked:") && notes.Contains(r.NotChecked[0].What), "not checked: " + notes);
+    }
+
+    // Task 5: settings
+    public static void TestSettingsRoundTrip()
+    {
+        string p = Temp("settings.json");
+        Settings s = Settings.Load(p);
+        Eq(false, s.Disabled, "default disabled");
+        Eq(0, s.MainDecksFor(@"C:\Models\Car").Count, "default main decks");
+        s.SetMainDecks(@"C:\Models\Car", new[] { "main.k", "sub\\other.k" });
+        s.Disabled = true;
+        s.Save();
+        Settings t = Settings.Load(p);
+        Eq(true, t.Disabled, "disabled");
+        Eq("main.k;sub\\other.k", string.Join(";", t.MainDecksFor(@"c:\models\car\")), "main decks, case and slash");
+    }
+
+    public static void TestCorruptSettingsFallBackToDefaults()
+    {
+        string p = Temp("bad.json");
+        File.WriteAllText(p, "{ not json");
+        Settings s = Settings.Load(p);
+        Eq(false, s.Disabled, "disabled");
+        Eq(0, s.MainDecksFor(@"C:\x").Count, "main decks");
+    }
+
+    public static void TestCheckOnSaveRule()
+    {
+        Eq(true, Plugin.ChecksOnSave(@"C:\m\main.k", new string[0]), ".k");
+        Eq(true, Plugin.ChecksOnSave(@"C:\m\MAIN.KEY", new string[0]), ".key");
+        Eq(true, Plugin.ChecksOnSave(@"C:\m\part.inc", new string[0]), ".inc");
+        Eq(false, Plugin.ChecksOnSave(@"C:\m\notes.txt", new string[0]), ".txt");
+        Eq(true, Plugin.ChecksOnSave(@"C:\m\mesh.dat", new[] { @"C:\m" }), "a file in a checked model's folder");
+    }
+
     // Task 3: running the engine
     static RunOutcome RunFake(string file, IList<string> mains, int waitMs)
     {
