@@ -155,6 +155,22 @@ def test_decks_and_for_are_exclusive_and_one_is_needed(capsys, tmp_path):
     assert e.value.code == 2
 
 
+def test_background_flag_enters_background_mode(capsys, monkeypatch):
+    calls = []
+    monkeypatch.setattr("deckcheck.cli._enter_background", lambda: calls.append(1) or True)
+    code, _, _ = run(capsys, "--background", TORTURE / "base" / "main.k")
+    assert code == 0 and calls == [1]
+    run(capsys, TORTURE / "base" / "main.k")
+    assert calls == [1]  # only when asked
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows background mode")
+def test_enter_background_succeeds_on_windows():
+    from deckcheck.cli import _enter_background
+    code = ("from deckcheck.cli import _enter_background; import sys; sys.exit(0 if _enter_background() else 1)")
+    assert subprocess.run([sys.executable, "-c", code]).returncode == 0
+
+
 def test_json_models_for_explicit_decks(capsys):
     _, out, _ = run(capsys, "--format", "json", SEEDED)
     (m,) = json.loads(out)["models"]

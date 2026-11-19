@@ -205,7 +205,7 @@ public static class Run
         Env("FAKE_JSON", Path.GetFullPath(Path.Combine(Data, "seeded.json")));
         string file = Path.GetFullPath(Path.Combine(Data, "seeded.json"));
         RunFake(file, new[] { "a b.k", "c.k" }, 20000);
-        Eq("--for\nseeded.json\n--main-deck\na b.k\n--main-deck\nc.k\n--format\njson\ncwd=" + Path.GetDirectoryName(file),
+        Eq("--for\nseeded.json\n--main-deck\na b.k\n--main-deck\nc.k\n--format\njson\n--background\ncwd=" + Path.GetDirectoryName(file),
            File.ReadAllText(args), "arguments and working directory");
     }
 

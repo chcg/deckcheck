@@ -28,6 +28,18 @@ def _rel(path: Path) -> str:
         return Path(os.path.abspath(path)).as_posix()
 
 
+def _enter_background() -> bool:
+    """Windows background mode for this process: low CPU, disk and memory priority, so an editor that started the
+    check stays responsive (Notepad++ spec §5). Only a process can put itself in this mode. False elsewhere."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+    kernel32.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    return bool(kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x00100000))  # PROCESS_MODE_BACKGROUND_BEGIN
+
+
 def _plural(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
 
@@ -84,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="with --for: use this main deck instead of scanning the folder (repeatable)")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--ignore", action="append", default=[], metavar="CODE", help="leave out a code (repeatable)")
+    parser.add_argument("--background", action="store_true",
+                        help="run at background priority (Windows: low CPU, disk and memory priority)")
     parser.add_argument("--version", action="version", version=f"deckcheck {_version()}")
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -93,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     unknown = sorted(ignore - set(CODES))
     if unknown:
         parser.error(f"unknown code {unknown[0]} (known: {', '.join(CODES)})")
+    if args.background:
+        _enter_background()
     if bool(args.decks) == (args.for_file is not None):
         parser.error("give main decks, or --for FILE, but not both")
     if args.main_deck and args.for_file is None:

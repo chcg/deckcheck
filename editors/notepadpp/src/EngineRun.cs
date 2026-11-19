@@ -74,6 +74,7 @@ namespace Deckcheck.Npp
                 List<string> args = new List<string> { "--for", Path.GetFileName(file) };
                 foreach (string m in mainDecks) { args.Add("--main-deck"); args.Add(m); }
                 args.Add("--format"); args.Add("json");
+                args.Add("--background");  // low disk and memory priority too: only the engine can set it on itself
                 StringBuilder line = new StringBuilder();
                 foreach (string a in args) { if (line.Length > 0) line.Append(' '); line.Append(Quote(a)); }
 
