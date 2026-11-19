@@ -44,6 +44,7 @@ For scripts and CI, use `--format json`:
 $ deckcheck --format json spc_set_none/main.k
 {
   "version": 1,
+  "models": [{"main": "spc_set_none/main.k", "files": 1, "alone": false}],
   "diagnostics": [
     {
       "file": "spc_set_none/main.k",
@@ -67,6 +68,10 @@ that writes `"version": 1`.
 Other options:
 - `--ignore DC005` leaves a code out of the output and the exit code. Repeat it to leave out more codes.
 - Give several main decks to check them as separate models.
+- `--for FILE` checks the model, or models, a file belongs to: the decks in its folder that include it. A file no deck
+  includes is checked alone. `--main-deck DECK` (repeatable, with `--for`) names the main decks instead of scanning.
+  The `models` list in the JSON says which main decks were checked, how many files each reached, and whether the file
+  was checked alone.
 
 Exit codes:
 

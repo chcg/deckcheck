@@ -28,6 +28,14 @@ def test_frozen_engine_matches_cli_in_a_non_ascii_folder(tmp_path):
     assert _run([FROZEN], folder) == _run([sys.executable, "-m", "deckcheck"], folder)
 
 
+@pytest.mark.parametrize("args", [["--for", "main.k"], ["--for", "main.k", "--main-deck", "main.k"]])
+def test_frozen_for_matches_cli(args):
+    folder = Path("tests/torture/inc_nested_main")
+    run = lambda cmd: subprocess.run(cmd + args + ["--format", "json"], cwd=folder, capture_output=True, timeout=600)
+    f, c = run([FROZEN]), run([sys.executable, "-m", "deckcheck"])
+    assert (f.returncode, f.stdout) == (c.returncode, c.stdout)
+
+
 def test_frozen_version_matches():
     frozen = subprocess.run([FROZEN, "--version"], capture_output=True, text=True).stdout
     cli = subprocess.run([sys.executable, "-m", "deckcheck", "--version"], capture_output=True, text=True).stdout
