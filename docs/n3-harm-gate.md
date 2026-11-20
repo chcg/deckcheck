@@ -29,7 +29,7 @@
 
 | Measure | Without (median) | Paired median difference | Allowed | Verdict |
 |---|---|---|---|---|
-| open | 0.242 s | +0.065 s | 0.024 s | **missed, accepted by Chintan** |
+| open | 0.242 s | +0.065 s | 0.024 s | **missed, accepted by the owner** |
 | type | 16.7 ms | −0.1 ms | 20 ms | met |
 | scroll | 16.5 ms | +0.2 ms | 20 ms | met |
 
@@ -39,10 +39,10 @@
 2. **Diagnosis:** with the plugin installed but no check running, the open medians were 0.269 s against 0.266 s.
    The plugin's own code costs nothing measurable; the cost is the running engine, which reads the same model from
    disk.
-3. **Fix chosen by Chintan:** the engine's new `--background` flag puts its process into Windows background mode
+3. **Fix chosen by the owner:** the engine's new `--background` flag puts its process into Windows background mode
    (low CPU, disk and memory priority; only a process can do this to itself), and the plugin passes it. The open
    cost halved, to +0.065 s.
-4. **Decision (Chintan, 2026-11-19):** accept the remaining +65 ms. It occurs only while a full-vehicle check
+4. **Decision (the owner, 2026-11-19):** accept the remaining +65 ms. It occurs only while a full-vehicle check
    runs, and only when opening a very large file. Typing and scrolling are unaffected. The owner trial is the
    real judge.
 

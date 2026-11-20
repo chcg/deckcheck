@@ -33,7 +33,7 @@ NppExec with an output filter on `%FILE%:%LINE%:%CHAR%` for click-to-jump.
 
 ## Build (developers)
 
-`powershell -ExecutionPolicy Bypass -File editors\notepadpp\build.ps1 [-Version 0.1.0] [-Test]`
+`powershell -ExecutionPolicy Bypass -File editors\notepadpp\build.ps1 [-Version 0.2.0] [-Test]`
 
 It uses only tools that ship with Windows: the .NET Framework's `csc.exe` (C# 5) and `ilasm.exe`. `src/Exports.il`
 holds the six native entry points Notepad++ calls and forwards them to the C# code in `DeckcheckNpp.dll`.

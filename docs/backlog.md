@@ -145,10 +145,10 @@ Status: **open**, **done** (with where), or **pinned** (waiting on Chintan).
 
 ## Notepad++ plugin, N0-N3 (2026-11-19)
 
-**Pinned for release (Chintan decides):**
+**Pinned for release (the owner decides):**
 - Version number: the engine gained `--for`, `--main-deck`, `--background` and JSON `models`/`reached`. The spec says
   0.1.x; semver says 0.2.0. Plugin and engine ship from the same tag.
-- VirusTotal scan of the release zip, uploaded by Chintan (N0 Task 4, deferred).
+- VirusTotal scan of the release zip, uploaded by the owner (N0 Task 4, deferred).
 - Licence review of `THIRD-PARTY-LICENSES.txt` in the zip: OpenSSL (Apache-2.0), mpdecimal, liblzma and the VC runtime
   are named but their full texts are not reproduced.
 - Committed plans carry the repo path, the owner's first name and agent instructions (as the earlier M-stage plans

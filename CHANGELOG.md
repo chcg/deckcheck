@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0
+
+**Notepad++ plugin** (`editors/notepadpp/`, one zip with its own engine; nothing else to install, no Python needed):
+- *Check model* (Alt+Shift+K) and on save: checks the model the current file belongs to, across its includes.
+- Red and amber squiggles on the exact field, the message on hover, and a docked findings panel whose rows jump to
+  the field, opening the include if needed.
+- *Main decks...* per folder; *Disable*. Checks run in the background at low priority and never make Notepad++ wait;
+  a new check or closing Notepad++ ends the running one.
+
+**Command line** (no existing option or JSON field changed):
+- `--for FILE`: check the model, or models, a file belongs to: the decks in its folder, or up to two folders above
+  it, that include it. A file no deck includes is checked alone.
+- `--main-deck DECK` (with `--for`, repeatable): name the main decks instead.
+- `--background`: on Windows, run at background priority (low CPU, disk and memory priority).
+- JSON output gains `models`: each checked main deck, how many files it reached, which ones (`reached`), and whether
+  the file was checked alone.
+
 ## 0.1.0 (first release)
 
 The command line and the VS Code extension's language server.

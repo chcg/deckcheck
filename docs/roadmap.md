@@ -1,6 +1,6 @@
 # deckcheck roadmap
 
-deckcheck is a work in progress. Version 0.1.0 checks a deck's structure from the command line and inside VS Code, and
+deckcheck is a work in progress. Version 0.2.0 checks a deck's structure from the command line, in VS Code and in Notepad++, and
 navigates a model in VS Code; the next steps add an interface for AI assistants and model-quality checks. This page
 says what works today, what comes next, and how each step is decided. It has no dates: each milestone ships when it
 passes its own tests and measurements.
@@ -12,13 +12,14 @@ passes its own tests and measurements.
 | M0. Parser study | A measured comparison of the open parsers for keyword decks; deckcheck reads decks with its own reader | done |
 | M1. Core and command line | `deckcheck main.k`: seven checks across the whole model, text or JSON output, exit codes for CI | done |
 | M2. VS Code extension | Squiggles and the Problems panel for the whole model, live on small models, on save or click on big ones | done |
+| N. Notepad++ plugin | Squiggles and a findings panel for the whole model, on save or Alt+Shift+K; one zip, no Python needed | done (0.2.0) |
 | M3. AI assistant interface | deckcheck's checks and lookups for AI coding assistants, through the Model Context Protocol | planned |
 | M4. Model-quality checks | Checks a senior analyst does by eye; suppression of single findings | planned |
 | M5. Model tree and deck diff | A browsable model tree, and a diff that says what changed in the model, not just in the text | planned |
 | M6. Second solver | The same checks for OpenRadioss decks | planned |
 | M7. Rule packs | Team and company conventions as optional sets of rules | planned |
 
-## What works today (0.1.0)
+## What works today (0.2.0)
 
 Install the command line with `pip install deckcheck`, and the extension from the VS Code Marketplace or Open VSX
 (search for **deckcheck**).

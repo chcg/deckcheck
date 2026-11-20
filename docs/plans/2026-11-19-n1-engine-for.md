@@ -15,7 +15,7 @@
 - Branch `n1-engine`, cut from `n0-spike`. Never push; the repo is public.
 - No change to any check's logic. Existing CLI behaviour and JSON keys stay as they are; `models` is added.
 - `deckcheck.lsp.workspace` must stay importable without pygls (the frozen engine has no `[lsp]` extra).
-- The 0.1.x release of these changes needs Chintan's explicit yes; it is done with N4, not here.
+- The 0.1.x release of these changes needs the owner's explicit yes; it is done with N4, not here.
 - Avoid shell heredocs for code edits.
 
 ## Review Focus

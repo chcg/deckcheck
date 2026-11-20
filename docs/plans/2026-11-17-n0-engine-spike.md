@@ -4,7 +4,7 @@
 
 **Goal:** Find out, before any plugin code exists, whether deckcheck can ship to Notepad++ as a frozen Windows executable: same findings as the CLI, acceptable size and speed, not flagged by antivirus, and allowed by Plugins Admin's rules.
 
-**Architecture:** Freeze the installed deckcheck package with PyInstaller (one-folder build) into a git-ignored `build-engine/` folder, using a separate build venv. A parity test proves the frozen engine prints byte-identical JSON to `python -m deckcheck` on all 86 torture decks. A measurement script records size, start time, check times and any personal paths embedded in the build. Defender is run locally; VirusTotal only with Chintan's yes. The Plugins Admin and template-licence facts are read from their sources. Everything ends in `docs/n0-spike.md` and a gate decision.
+**Architecture:** Freeze the installed deckcheck package with PyInstaller (one-folder build) into a git-ignored `build-engine/` folder, using a separate build venv. A parity test proves the frozen engine prints byte-identical JSON to `python -m deckcheck` on all 86 torture decks. A measurement script records size, start time, check times and any personal paths embedded in the build. Defender is run locally; VirusTotal only with the owner's yes. The Plugins Admin and template-licence facts are read from their sources. Everything ends in `docs/n0-spike.md` and a gate decision.
 
 **Tech Stack:** Python 3.12 (`.venv`), PyInstaller (latest at execution time, recorded), pytest, PowerShell, Windows Defender (`MpCmdRun.exe`, `Get-MpComputerStatus`).
 
@@ -12,11 +12,11 @@
 
 ## Global Constraints
 
-- Work on branch `n0-spike`, cut from `npp-spec`. Never push; the repo is public. Every public step needs Chintan's explicit yes.
+- Work on branch `n0-spike`, cut from `npp-spec`. Never push; the repo is public. Every public step needs the owner's explicit yes.
 - No change to deckcheck's engine code in N0. `--for` and `--main-deck` are N1.
 - Build output goes to `build-engine/` (git-ignored), never committed. The build venv is `.venv-freeze/` (git-ignored).
 - Nothing personal in committed files or uploads: no home path, user name or email. The report uses repo-relative paths.
-- No upload to VirusTotal or any other service without Chintan's explicit yes at the Task 4 checkpoint.
+- No upload to VirusTotal or any other service without the owner's explicit yes at the Task 4 checkpoint.
 - Thresholds (gate, Task 6): Defender 0 detections; zip ≤ 30 MB; `--version` start median ≤ 1.5 s; Yaris check median ≤ 1.2 × the pip CLI's median; frozen output identical to the CLI on all torture decks.
 - On this laptop (7.7 GB, 4 cores) run one Yaris check at a time.
 - Avoid shell heredocs for code edits; use the editor tools.
@@ -39,7 +39,7 @@
 - [ ] **Step 1: Branch and ignore the build folders**
 
 ```powershell
-cd D:\AI_Projects\deckcheck; git checkout npp-spec; git checkout -b n0-spike
+git checkout npp-spec; git checkout -b n0-spike
 Add-Content .gitignore "build-engine/"
 Add-Content .gitignore ".venv-freeze/"
 git add .gitignore; git commit -m "N0: ignore the frozen-engine build folders"
@@ -317,12 +317,12 @@ Remove-Item -Recurse -Force $t
 ```
 Expected: the version line, exit 0, JSON output, and no new detection. A SmartScreen prompt or a block is a finding.
 
-- [ ] **Step 4: If Defender flags anything:** stop and ask Chintan (AskUserQuestion) before trying alternatives. The options are a PyInstaller rebuild with a self-built bootloader, a Nuitka build (which needs a C compiler download), or code signing (which costs money). Record the detection name and the step that triggered it.
+- [ ] **Step 4: If Defender flags anything:** stop and ask the owner (AskUserQuestion) before trying alternatives. The options are a PyInstaller rebuild with a self-built bootloader, a Nuitka build (which needs a C compiler download), or code signing (which costs money). Record the detection name and the step that triggered it.
 
 ### Task 4: CHECKPOINT: VirusTotal
 
-- [ ] **Step 1:** Report Tasks 1-3 to Chintan: parity, the measurements and Defender. Then ask with AskUserQuestion whether to scan `build-engine\deckcheck-engine.zip` on VirusTotal. Explain that VirusTotal shares uploaded files with security vendors and premium users. The build is made from public source, and Task 2 found no personal paths in it (or Task 2b removed them). Options:
-  - "Chintan uploads it himself" (recommended): he drags the zip into the VirusTotal web page and pastes the result link.
+- [ ] **Step 1:** Report Tasks 1-3 to the owner: parity, the measurements and Defender. Then ask with AskUserQuestion whether to scan `build-engine\deckcheck-engine.zip` on VirusTotal. Explain that VirusTotal shares uploaded files with security vendors and premium users. The build is made from public source, and Task 2 found no personal paths in it (or Task 2b removed them). Options:
+  - "The owner uploads it" (recommended): the owner drags the zip into the VirusTotal web page and pastes the result link.
   - "Skip VirusTotal": record "not scanned" in the report.
 - [ ] **Step 2:** Record the result: the number of engines that flagged it, and which ones. Treat any flag from Microsoft, CrowdStrike, Symantec, Sophos, Trend Micro, McAfee, Kaspersky, ESET or Bitdefender as a gate finding.
 
@@ -366,4 +366,4 @@ git add docs/n0-spike.md
 git commit -m "N0: frozen-engine spike report"
 ```
 
-- [ ] **Step 3: CHECKPOINT (stage gate).** Present the verdict to Chintan and ask with AskUserQuestion: "Go to N1" (only if every threshold is met), "Fix and re-measure", or "Stop and rethink the bundled engine". Do not start N1 without the answer. Merging `n0-spike` is a separate decision.
+- [ ] **Step 3: CHECKPOINT (stage gate).** Present the verdict to the owner and ask with AskUserQuestion: "Go to N1" (only if every threshold is met), "Fix and re-measure", or "Stop and rethink the bundled engine". Do not start N1 without the answer. Merging `n0-spike` is a separate decision.

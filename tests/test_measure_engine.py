@@ -12,14 +12,14 @@ def test_privacy_hits_finds_utf8_and_utf16_needles(tmp_path):
 
 def test_needles_cover_forward_slash_and_url_forms():
     from tools.freeze.measure_engine import needle_forms
-    forms = needle_forms("D:\\AI_Projects\\deckcheck")
-    assert {"D:\\AI_Projects\\deckcheck", "D:/AI_Projects/deckcheck", "file:///D:/AI_Projects/deckcheck"} <= set(forms)
+    forms = needle_forms("C:\\work\\deckcheck")
+    assert {"C:\\work\\deckcheck", "C:/work/deckcheck", "file:///C:/work/deckcheck"} <= set(forms)
 
 
 def test_privacy_hits_finds_a_direct_url_record(tmp_path):
     from tools.freeze.measure_engine import needle_forms
-    (tmp_path / "direct_url.json").write_text('{"url": "file:///D:/AI_Projects/deckcheck"}')
-    assert privacy_hits(tmp_path, needle_forms("D:\\AI_Projects\\deckcheck"))
+    (tmp_path / "direct_url.json").write_text('{"url": "file:///C:/work/deckcheck"}')
+    assert privacy_hits(tmp_path, needle_forms("C:\\work\\deckcheck"))
 
 
 def test_privacy_hits_is_case_insensitive_and_skips_empty_needles(tmp_path):

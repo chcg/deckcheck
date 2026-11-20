@@ -1,6 +1,6 @@
 # deckcheck for Notepad++: design
 
-**Status:** approved in brainstorm 2026-11-17 (Chintan); this document is for written review.
+**Status:** approved in brainstorm 2026-11-17 (the owner); this document is for written review.
 **Builds on:** the deckcheck engine and CLI (M1), and the lessons of the VS Code extension (M2: do no harm, big-model
 checks on save or on request, "Not checked" coverage, unsaved-edit messaging).
 
@@ -96,14 +96,14 @@ deck with non-ASCII comments before flagged fields, opened as UTF-8 and as ANSI,
   it are verified; no 32-bit.
 - Plugin and engine always ship together from the same deckcheck tag; the engine also stays on PyPI.
 - Distribution: a release asset on the public GitHub repo, then a pull request to `notepad-plus-plus/nppPluginList`.
-  Each public step needs Chintan's explicit yes.
+  Each public step needs the owner's explicit yes.
 - README footnote: running the CLI from NppExec with an output filter for click-to-jump, for users who prefer it.
 
 ## 8. Risks, checked first (N0)
 
 1. **Antivirus.** Frozen Python executables are a known source of false positives. A quarantined engine makes the
    plugin useless on exactly the machines it is for. N0 builds the engine (PyInstaller one-folder, and Nuitka if
-   needed), scans it with Windows Defender and VirusTotal, and reports. Code signing costs money and is Chintan's
+   needed), scans it with Windows Defender and VirusTotal, and reports. Code signing costs money and is the owner's
    decision if needed.
 2. **Plugins Admin rules.** N0 confirms that a 15-30 MB zip with a subfolder is accepted, the listing requirements,
    and the licence of the C# plugin template.
@@ -112,15 +112,15 @@ deck with non-ASCII comments before flagged fields, opened as UTF-8 and as ANSI,
 
 ## 9. Stages
 
-Each stage gets its own plan and ends at a gate; Chintan decides at each gate whether to continue.
+Each stage gets its own plan and ends at a gate; the owner decides at each gate whether to continue.
 
 | Stage | Delivers | Gate |
 |---|---|---|
 | N0 spike | Frozen engine; size, start and Yaris times; Defender and VirusTotal results; Plugins Admin and licence rules | Antivirus verdict acceptable, else stop and decide |
-| N1 engine | `--for`, `--main-deck`, JSON additions; released as 0.1.x after Chintan's yes | Suite and corpus green |
+| N1 engine | `--for`, `--main-deck`, JSON additions; released as 0.1.x after the owner's yes | Suite and corpus green |
 | N2 plugin core | Menu, background run, findings panel, jump, *Main decks...*, *Disable* | End-to-end tests on a portable Notepad++ |
 | N3 squiggles | Indicators, calltips, column conversion, painting caps | Do-no-harm gate (section 5) |
-| N4 release | Owner trial from written instructions, GitHub release, Plugins Admin pull request | Chintan's yes at each public step |
+| N4 release | Owner trial from written instructions, GitHub release, Plugins Admin pull request | the owner's yes at each public step |
 
 ## 10. Testing
 
@@ -129,11 +129,11 @@ Each stage gets its own plan and ends at a gate; Chintan decides at each gate wh
 - **End to end:** a portable Notepad++ in a throwaway folder with the built plugin, driven by window messages: menu,
   a check run, panel rows, a jump into an include, squiggle positions, *Disable*, a missing engine.
 - **Harm gate:** section 5, on the Yaris model.
-- **Owner trial:** Chintan installs and uses it from written, dry-run-verified instructions before any release.
+- **Owner trial:** The owner installs and uses it from written, dry-run-verified instructions before any release.
 
 ## 11. Out of scope
 
 - Syntax highlighting (community user-defined languages for keyword decks exist).
 - Checking while typing; navigation features (section 4).
 - Other editors (UltraEdit, Vim, Emacs); Notepad++ under Wine.
-- Code signing, unless N0 shows it is needed and Chintan approves the cost.
+- Code signing, unless N0 shows it is needed and the owner approves the cost.

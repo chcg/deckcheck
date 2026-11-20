@@ -101,4 +101,4 @@ The spec §6 case, a UTF-8 file with `°`, needs no shift, because the engine co
 - With the plugin, a full-model check is running throughout. It is started with *Check model* on the include, and the trace's `check_started` and `deckcheck.exe` being alive are checked before measuring.
 - Without the plugin, a portable copy has no `plugins\deckcheck`.
 - **Gate:** the paired-median difference is ≤ 10 % or ≤ 20 ms for each measure.
-- [ ] Run it, write `docs/n3-harm-gate.md` with every number from the script's JSON, and commit. A miss is a stop: report to Chintan before tuning.
+- [ ] Run it, write `docs/n3-harm-gate.md` with every number from the script's JSON, and commit. A miss is a stop: report to the owner before tuning.
