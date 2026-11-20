@@ -28,6 +28,16 @@ namespace Deckcheck.Npp
             return new[] { f.Severity, f.Code, f.File + ":" + f.Line, f.Message };
         }
 
+        /// The panel's note rows: unsaved-change warnings above the findings, the "Not checked" list below them.
+        public static void NoteRows(CheckResult r, IEnumerable<string> unsavedFiles, out List<string> above,
+                                    out List<string> below)
+        {
+            above = new List<string>();
+            below = new List<string>();
+            foreach (string line in Notes(r, unsavedFiles).Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
+                (line.StartsWith("Unsaved changes in ") ? above : below).Add(line);
+        }
+
         public static string Notes(CheckResult r, IEnumerable<string> unsavedFiles)
         {
             StringBuilder s = new StringBuilder();

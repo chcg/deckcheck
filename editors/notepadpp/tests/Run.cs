@@ -83,6 +83,18 @@ public static class Run
         Eq(3, ColumnMap.ToBuffer(2, 40, 0, 0, L1("abc")), "clamped");
     }
 
+    // Owner trial: notes are rows of the findings list (one scroll bar at any panel height)
+    public static void TestNoteRowsGoAboveAndBelowTheFindings()
+    {
+        CheckResult r = Findings.Parse(File.ReadAllText(Path.Combine(Data, "seeded.json")));
+        List<string> above, below;
+        PanelText.NoteRows(r, new[] { @"C:\m\part.k" }, out above, out below);
+        Eq("Unsaved changes in part.k are not checked.", string.Join("|", above.ToArray()), "above");
+        Eq("Not checked:", below[0], "first row below");
+        Eq(1 + r.NotChecked.Count, below.Count, "one row per not-checked entry");
+        Eq(true, below[1].StartsWith("  " + r.NotChecked[0].What + ": "), "entry row: " + below[1]);
+    }
+
     // N3 Task 2: which findings get painted
     public static void TestPainterSelectsThisFilesFindingsInOrderCapped()
     {

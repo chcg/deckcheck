@@ -33,6 +33,9 @@ def test_licences_are_included(package):
     assert {"LICENSE.txt", "THIRD-PARTY-LICENSES.txt"} <= set(names)
     text = zipfile.ZipFile(package[0]).read("THIRD-PARTY-LICENSES.txt").decode("utf-8")
     assert "Python Software Foundation" in text and "PyInstaller" in text
+    assert "Stefan Krah" in text  # mpdecimal (_decimal)
+    assert "liblzma is in the public domain" in text  # xz 5.2.5 (_lzma)
+    assert "OpenSSL 3.0.15" in text and "Apache License" in text  # libcrypto-3.dll
 
 
 def test_no_local_path_inside(package):

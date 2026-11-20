@@ -19,16 +19,18 @@ REPO = Path(__file__).resolve().parents[2]
 PLUGIN = REPO / "editors" / "notepadpp" / "out" / "deckcheck"
 ENGINE = REPO / "build-engine" / "dist" / "deckcheck"
 FREEZE_PY = REPO / ".venv-freeze" / "Scripts" / "python.exe"
+LICENCES = REPO / "editors" / "notepadpp" / "licenses"
 
 HEADER = """Third-party software in this package
 =====================================
 
 engine/ is deckcheck frozen with PyInstaller. It contains:
 
-- Python 3.12 runtime (python312.dll, base_library.zip, *.pyd): Python Software Foundation License. Its licence,
+- Python 3.12.9 runtime (python312.dll, base_library.zip, *.pyd): Python Software Foundation License. Its licence,
   which also covers the bzip2 and libffi libraries Python ships, is reproduced below.
-- libcrypto-3.dll (OpenSSL 3): Apache License 2.0, the same licence as deckcheck (LICENSE.txt).
-- _decimal (mpdecimal): BSD 2-Clause licence. _lzma (liblzma, XZ Utils): public domain / 0BSD.
+- libcrypto-3.dll, OpenSSL 3.0.15: Apache License 2.0, reproduced below.
+- _decimal.pyd, libmpdec 2.5.1 (mpdecimal): BSD 2-Clause licence, reproduced below.
+- _lzma.pyd, liblzma from XZ Utils 5.2.5: public domain; the XZ Utils licensing note is reproduced below.
 - VCRUNTIME140.dll: Microsoft Visual C++ runtime, redistributed under the Visual Studio redistribution terms.
 - The PyInstaller bootloader: GPL 2.0 with an exception that permits distributing it with any program; its licence
   is reproduced below.
@@ -49,8 +51,13 @@ def third_party_text() -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
     python_licence = (Path(base) / "LICENSE.txt").read_text(encoding="utf-8", errors="replace")
     pyi = next((REPO / ".venv-freeze" / "Lib" / "site-packages").glob("pyinstaller-*.dist-info/licenses/COPYING.txt"))
-    return (HEADER + "=" * 70 + "\nPython\n" + "=" * 70 + "\n" + python_licence + "\n\n" + "=" * 70
-            + "\nPyInstaller\n" + "=" * 70 + "\n" + pyi.read_text(encoding="utf-8", errors="replace"))
+    parts = [("Python 3.12.9", python_licence), ("PyInstaller", pyi.read_text(encoding="utf-8", errors="replace"))]
+    names = {"openssl-3.0.15.txt": "OpenSSL 3.0.15 (libcrypto-3.dll)", "mpdecimal-2.5.1.txt": "libmpdec 2.5.1 (_decimal)",
+             "xz-5.2.5.txt": "XZ Utils 5.2.5 (liblzma, _lzma)"}
+    for f, title in names.items():  # verbatim copies; sources in editors/notepadpp/licenses/README.md
+        parts.append((title, (LICENCES / f).read_text(encoding="utf-8")))
+    bar = "=" * 70
+    return HEADER + "".join(f"{bar}\n{title}\n{bar}\n{text}\n\n" for title, text in parts)
 
 
 def build(version: str, out: Path) -> Path:

@@ -12,8 +12,10 @@ namespace Deckcheck.Npp
     {
         readonly Label _summary = new Label();
         readonly ListView _list = new ListView();
-        readonly TextBox _notes = new TextBox();
+        // One list, one scroll bar at any panel height (owner trial: a separate notes box was too short to scroll).
+        // Rows: unsaved-change notes, then the findings, then the "Not checked" notes, in grey.
         List<Finding> _rows = new List<Finding>();
+        List<string> _above = new List<string>(), _below = new List<string>();
         public event Action<Finding> JumpTo;
 
         public Panel()
@@ -39,51 +41,66 @@ namespace Deckcheck.Npp
             _list.ItemActivate += delegate { Activate_(); };
             _list.VirtualMode = true;  // rows are built only when shown: a model can have tens of thousands (spec §5)
             _list.VirtualListSize = 0;
-            _list.RetrieveVirtualItem += (s, e) =>
+            _list.RetrieveVirtualItem += (s, e) => { e.Item = ItemAt(e.ItemIndex); };
+            Controls.Add(_list);
+            Controls.Add(_summary);
+        }
+
+        ListViewItem ItemAt(int i)
+        {
+            if (i < _above.Count) return Note(_above[i], Color.DarkGoldenrod);
+            i -= _above.Count;
+            if (i < _rows.Count)
             {
-                Finding f = _rows[e.ItemIndex];
+                Finding f = _rows[i];
                 ListViewItem it = new ListViewItem(PanelText.Row(f));
                 it.ForeColor = f.Severity == "error" ? Color.Firebrick : Color.DarkGoldenrod;
-                e.Item = it;
-            };
-            _notes.Dock = DockStyle.Bottom;
-            _notes.Multiline = true;
-            _notes.ReadOnly = true;
-            _notes.ScrollBars = ScrollBars.Vertical;
-            _notes.Height = 60;
-            Controls.Add(_list);
-            Controls.Add(_notes);
-            Controls.Add(_summary);
+                return it;
+            }
+            return Note(_below[i - _rows.Count], Color.DimGray);
+        }
+
+        static ListViewItem Note(string text, Color color)
+        {
+            ListViewItem it = new ListViewItem(new[] { "", "", "", text });
+            it.ForeColor = color;
+            return it;
         }
 
         void Activate_()
         {
-            if (_list.SelectedIndices.Count == 1 && JumpTo != null) JumpTo(_rows[_list.SelectedIndices[0]]);
+            if (_list.SelectedIndices.Count != 1 || JumpTo == null) return;
+            int i = _list.SelectedIndices[0] - _above.Count;
+            if (i >= 0 && i < _rows.Count) JumpTo(_rows[i]);  // note rows do nothing
+        }
+
+        void SetRows(List<Finding> rows, List<string> above, List<string> below)
+        {
+            _rows = rows;
+            _above = above;
+            _below = below;
+            _list.VirtualListSize = _above.Count + _rows.Count + _below.Count;
+            _list.Invalidate();
         }
 
         public void ShowRunning(string file)
         {
             _summary.Text = "Checking the model of " + Path.GetFileName(file) + "...";
-            _rows = new List<Finding>();
-            _list.VirtualListSize = 0;
-            _notes.Text = "";
+            SetRows(new List<Finding>(), new List<string>(), new List<string>());
         }
 
         public void ShowMessage(string message)
         {
             _summary.Text = message;
-            _rows = new List<Finding>();
-            _list.VirtualListSize = 0;
-            _notes.Text = "";
+            SetRows(new List<Finding>(), new List<string>(), new List<string>());
         }
 
         public void ShowResult(CheckResult r, double seconds, string file, IEnumerable<string> unsaved)
         {
             _summary.Text = PanelText.Summary(r, seconds, file);
-            _rows = r.Diagnostics;
-            _list.VirtualListSize = _rows.Count;
-            _list.Invalidate();
-            _notes.Text = PanelText.Notes(r, unsaved);
+            List<string> above, below;
+            PanelText.NoteRows(r, unsaved, out above, out below);
+            SetRows(r.Diagnostics, above, below);
         }
 
         public void MarkEdited()
