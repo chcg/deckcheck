@@ -26,6 +26,16 @@ Plugins Admin (once listed), or by hand: close Notepad++, create the folder
 `plugins\deckcheck\deckcheck.dll` exists), and start Notepad++.
 Windows 10 or 11 x64; the .NET Framework 4.8 it needs is part of Windows.
 
+## If a virus scanner flags it
+
+The engine is deckcheck packaged with PyInstaller, and a few scanners flag PyInstaller programs by their shared
+launcher rather than by what they do. On VirusTotal, release 0.2.0 was reported clean by Windows Defender and every
+major vendor (Microsoft, CrowdStrike, Symantec, Sophos, Trend Micro, McAfee, Kaspersky, ESET, BitDefender), and
+flagged by 4 of about 66 engines (Bkav, DeepInstinct, Elastic, Zillya); false-positive reports have been filed. The
+engine makes no network connections and reads only the deck files you check; its source and build script are in
+this repository (`tools/freeze/build_engine.ps1`). If your company's endpoint protection quarantines
+`engine\deckcheck.exe`, the panel says the engine was not found and Notepad++ works as before; ask IT to allow it.
+
 ## Without the plugin
 
 The same engine runs from a terminal (`pip install deckcheck`, then `deckcheck main.k`). Power users can run it from
