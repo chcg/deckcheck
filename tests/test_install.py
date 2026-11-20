@@ -15,7 +15,7 @@ def test_wheel_installs_clean_and_runs(tmp_path):
     dist = tmp_path / "dist"
     subprocess.run([sys.executable, "-m", "pip", "wheel", str(ROOT), "--no-deps", "-w", str(dist)], check=True,
                    capture_output=True)
-    [wheel] = dist.glob("deckcheck-0.1.0-*.whl")
+    [wheel] = dist.glob("deckcheck-*.whl")  # any version: the wheel pip just built
     env_dir = tmp_path / "clean"
     venv.create(env_dir, with_pip=True)
     py = env_dir / "Scripts" / "python.exe"
